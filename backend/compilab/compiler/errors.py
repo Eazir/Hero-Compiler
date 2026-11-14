@@ -1,7 +1,9 @@
 """Definición de errores de compilación y catálogo de códigos."""
+
 from __future__ import annotations
 
 from typing import Any, Optional
+
 from compilab.contract.models import ErrorInfo, Span
 
 

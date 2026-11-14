@@ -5,3 +5,4 @@ export interface PredictionQuestion {
   correctAnswer: string;
   points: number;
 }
+

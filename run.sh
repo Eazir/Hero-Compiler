@@ -46,3 +46,4 @@ echo "-> Backend corriendo en:  http://localhost:8000/docs"
 echo "-> Frontend corriendo en: http://localhost:5173"
 echo "Presiona Ctrl+C para detener ambos servicios."
 wait
+

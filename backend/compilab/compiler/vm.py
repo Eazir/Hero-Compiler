@@ -1,5 +1,7 @@
 """Máquina virtual de ejecución (F5/F7)."""
+
 from dataclasses import dataclass
+
 from compilab.contract.models import RunResult
 
 

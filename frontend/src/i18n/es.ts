@@ -41,3 +41,4 @@ export const es = {
     fragmentLimitReached: 'Has alcanzado el límite máximo de 12 fragmentos.',
   },
 } as const;
+

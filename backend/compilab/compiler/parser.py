@@ -1,6 +1,8 @@
 """Analizador sintáctico (F2)."""
+
 from dataclasses import dataclass
 from typing import Any
+
 from compilab.compiler.lexer import Token
 from compilab.compiler.tracer import Tracer
 

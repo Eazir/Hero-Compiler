@@ -57,3 +57,4 @@ export const Block: React.FC<BlockProps> = ({ type, label, onClick }) => {
     </div>
   );
 };
+

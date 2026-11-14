@@ -27,3 +27,4 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
   setSpeed: (speed) => set({ speed }),
 }));
+

@@ -27,3 +27,4 @@ export const bin = (op: '+' | '-' | '*', left: Expr, right: Expr): Expr => ({
 
 export const assign = (name: string, expr: Expr): Stmt => ({ kind: 'assign', name, expr });
 export const printStmt = (expr: Expr): Stmt => ({ kind: 'print', expr });
+

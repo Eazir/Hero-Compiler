@@ -45,3 +45,4 @@ export const Chip: React.FC<ChipProps> = ({ label, variant = 'default' }) => {
     </span>
   );
 };
+

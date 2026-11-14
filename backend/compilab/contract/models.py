@@ -1,7 +1,9 @@
 """Modelos Pydantic v2 del contrato JSON v1 entre backend y frontend."""
+
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 PhaseId = Literal[
@@ -29,6 +31,7 @@ EXPECTED_PHASE_ORDER: list[PhaseId] = [
 
 class Span(BaseModel):
     """Rango en el código fuente (posiciones 1-based)."""
+
     model_config = ConfigDict(extra="allow")
 
     line: int
@@ -38,6 +41,7 @@ class Span(BaseModel):
 
 class Focus(BaseModel):
     """Elemento a enfocar/resaltar en la interfaz."""
+
     model_config = ConfigDict(extra="allow")
 
     span: Optional[Span] = None
@@ -46,6 +50,7 @@ class Focus(BaseModel):
 
 class Step(BaseModel):
     """Un paso atómico dentro de una fase para el reproductor."""
+
     model_config = ConfigDict(extra="allow")
 
     i: int
@@ -57,6 +62,7 @@ class Step(BaseModel):
 
 class PhaseResult(BaseModel):
     """Resultado y traza de una de las 7 fases."""
+
     model_config = ConfigDict(extra="allow")
 
     id: PhaseId
@@ -69,6 +75,7 @@ class PhaseResult(BaseModel):
 
 class Executable(BaseModel):
     """Representación del ejecutable binario resultante."""
+
     model_config = ConfigDict(extra="allow")
 
     hex: str
@@ -77,6 +84,7 @@ class Executable(BaseModel):
 
 class RunStep(BaseModel):
     """Paso de ejecución de la máquina virtual."""
+
     model_config = ConfigDict(extra="allow")
 
     pc: int
@@ -86,6 +94,7 @@ class RunStep(BaseModel):
 
 class RunResult(BaseModel):
     """Resultado de la ejecución del binario en la VM."""
+
     model_config = ConfigDict(extra="allow")
 
     stdout: list[str] = Field(default_factory=list)
@@ -95,6 +104,7 @@ class RunResult(BaseModel):
 
 class Fix(BaseModel):
     """Sugerencia de corrección estructurada para el editor de bloques."""
+
     model_config = ConfigDict(extra="allow")
 
     label: str
@@ -103,6 +113,7 @@ class Fix(BaseModel):
 
 class ErrorInfo(BaseModel):
     """Información completa de error de compilación o ejecución."""
+
     model_config = ConfigDict(extra="allow")
 
     code: str
@@ -118,6 +129,7 @@ class ErrorInfo(BaseModel):
 
 class Meta(BaseModel):
     """Metadatos de la compilación."""
+
     model_config = ConfigDict(extra="allow")
 
     sourceLength: int
@@ -127,6 +139,7 @@ class Meta(BaseModel):
 
 class CompileRequest(BaseModel):
     """Cuerpo de petición para POST /api/compile."""
+
     model_config = ConfigDict(extra="forbid")
 
     source: str
@@ -135,6 +148,7 @@ class CompileRequest(BaseModel):
 
 class CompileResponse(BaseModel):
     """Respuesta canónica de POST /api/compile (esquema v1)."""
+
     model_config = ConfigDict(extra="allow")
 
     version: int = 1

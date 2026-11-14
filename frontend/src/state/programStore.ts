@@ -24,3 +24,4 @@ export const useProgramStore = create<ProgramState>((set) => ({
   loadDefaultExample: () => set({ program: defaultExample, fragmentCount: 8 }),
   reset: () => set({ program: [], fragmentCount: 0 }),
 }));
+

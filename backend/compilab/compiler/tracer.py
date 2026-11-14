@@ -1,15 +1,18 @@
 """Módulo de rastreo y registro de pasos de cada fase."""
+
 from __future__ import annotations
 
 from typing import Any, Optional
-from compilab.api.limits import MAX_STEPS_PER_PHASE
+
 from compilab.contract.models import Focus, Step
+
+DEFAULT_MAX_STEPS: int = 200
 
 
 class Tracer:
     """Registrador determinista de pasos para una fase del compilador."""
 
-    def __init__(self, max_steps: int = MAX_STEPS_PER_PHASE) -> None:
+    def __init__(self, max_steps: int = DEFAULT_MAX_STEPS) -> None:
         self.max_steps = max_steps
         self.steps: list[Step] = []
 
