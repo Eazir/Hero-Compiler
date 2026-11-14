@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "ok": false,
+  "phases": [
+    {
+      "id": "lexical",
+      "name": "Análisis léxico",
+      "status": "ok",
+      "summary": "5 tokens identificados",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Token ID 'a'",
+          "explain": "'a' identificado en línea 1, columna 1.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 1 }, "nodeIds": [] },
+          "ops": [{ "op": "token", "type": "ID", "lexeme": "a", "line": 1, "col": 1 }]
+        }
+      ],
+      "output": {
+        "tokens": [
+          { "type": "ID", "lexeme": "a", "line": 1, "col": 1 },
+          { "type": "ASSIGN", "lexeme": "=", "line": 1, "col": 3 },
+          { "type": "ID", "lexeme": "d", "line": 1, "col": 5 },
+          { "type": "PLUS", "lexeme": "+", "line": 1, "col": 7 },
+          { "type": "NUM", "lexeme": "1", "line": 1, "col": 9 },
+          { "type": "EOF", "lexeme": "", "line": 1, "col": 10 }
+        ]
+      }
+    },
+    {
+      "id": "syntactic",
+      "name": "Análisis sintáctico",
+      "status": "ok",
+      "summary": "AST construido correctamente",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Regla assign",
+          "explain": "Estructura sintáctica válida para a = d + 1.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 9 }, "nodeIds": ["n1"] },
+          "ops": [
+            { "op": "rule", "name": "assign" },
+            { "op": "node", "id": "n1", "kind": "assign", "label": "a = d + 1" }
+          ]
+        }
+      ],
+      "output": {
+        "ast": {
+          "id": "root",
+          "kind": "program",
+          "children": [
+            {
+              "id": "s1",
+              "kind": "assign",
+              "name": "a",
+              "expr": {
+                "id": "e1",
+                "kind": "binop",
+                "op": "+",
+                "left": { "id": "e2", "kind": "var", "name": "d" },
+                "right": { "id": "e3", "kind": "num", "value": 1 }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "semantic",
+      "name": "Análisis semántico",
+      "status": "error",
+      "summary": "Fallo semántico: variable 'd' no declarada",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Búsqueda de 'd'",
+          "explain": "Se intenta leer la variable 'd' pero no existe en la tabla de símbolos.",
+          "focus": { "span": { "line": 1, "col": 5, "len": 1 }, "nodeIds": ["e2"] },
+          "ops": [
+            { "op": "lookup", "name": "d", "line": 1, "found": false },
+            { "op": "fail", "code": "E-301", "message": "La variable 'd' no fue declarada" }
+          ]
+        }
+      ],
+      "output": {
+        "symbols": [],
+        "warnings": []
+      }
+    },
+    {
+      "id": "ir",
+      "name": "Código intermedio",
+      "status": "skipped",
+      "summary": "Omitida por error en fase semántica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "optimization",
+      "name": "Optimización",
+      "status": "skipped",
+      "summary": "Omitida por error en fase semántica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "assembly",
+      "name": "Generación de ensamblador",
+      "status": "skipped",
+      "summary": "Omitida por error en fase semántica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "binary",
+      "name": "Generación de binario",
+      "status": "skipped",
+      "summary": "Omitida por error en fase semántica",
+      "steps": [],
+      "output": null
+    }
+  ],
+  "executable": null,
+  "run": null,
+  "error": {
+    "code": "E-301",
+    "kind": "semantic",
+    "phase": "semantic",
+    "message": "La variable \"d\" no fue declarada",
+    "why": "Una variable necesita recibir un valor en una línea anterior antes de usarse.",
+    "hint": "Agrega una asignación como d = 4 antes de la línea 1.",
+    "span": { "line": 1, "col": 5, "len": 1 },
+    "stepIndex": 0,
+    "fixes": [
+      {
+        "label": "Agregar d = 4 antes de la línea 1",
+        "kind": "insert_assignment",
+        "name": "d",
+        "value": 4,
+        "beforeLine": 1
+      }
+    ]
+  },
+  "meta": {
+    "sourceLength": 9,
+    "lineCount": 1,
+    "elapsedMs": 0.8
+  }
+}

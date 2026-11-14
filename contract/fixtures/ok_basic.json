@@ -1,0 +1,349 @@
+{
+  "version": 1,
+  "ok": true,
+  "phases": [
+    {
+      "id": "lexical",
+      "name": "Análisis léxico",
+      "status": "ok",
+      "summary": "15 tokens identificados",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Token ID 'a'",
+          "explain": "'a' es un identificador válido en línea 1, columna 1.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 1 }, "nodeIds": [] },
+          "ops": [{ "op": "token", "type": "ID", "lexeme": "a", "line": 1, "col": 1 }]
+        },
+        {
+          "i": 1,
+          "title": "Token ASSIGN '='",
+          "explain": "'=' operador de asignación.",
+          "focus": { "span": { "line": 1, "col": 3, "len": 1 }, "nodeIds": [] },
+          "ops": [{ "op": "token", "type": "ASSIGN", "lexeme": "=", "line": 1, "col": 3 }]
+        },
+        {
+          "i": 2,
+          "title": "Token NUM '5'",
+          "explain": "'5' constante numérica entera.",
+          "focus": { "span": { "line": 1, "col": 5, "len": 1 }, "nodeIds": [] },
+          "ops": [{ "op": "token", "type": "NUM", "lexeme": "5", "line": 1, "col": 5 }]
+        }
+      ],
+      "output": {
+        "tokens": [
+          { "type": "ID", "lexeme": "a", "line": 1, "col": 1 },
+          { "type": "ASSIGN", "lexeme": "=", "line": 1, "col": 3 },
+          { "type": "NUM", "lexeme": "5", "line": 1, "col": 5 },
+          { "type": "NEWLINE", "lexeme": "\n", "line": 1, "col": 6 },
+          { "type": "ID", "lexeme": "b", "line": 2, "col": 1 },
+          { "type": "ASSIGN", "lexeme": "=", "line": 2, "col": 3 },
+          { "type": "NUM", "lexeme": "3", "line": 2, "col": 5 },
+          { "type": "NEWLINE", "lexeme": "\n", "line": 2, "col": 6 },
+          { "type": "ID", "lexeme": "c", "line": 3, "col": 1 },
+          { "type": "ASSIGN", "lexeme": "=", "line": 3, "col": 3 },
+          { "type": "ID", "lexeme": "a", "line": 3, "col": 5 },
+          { "type": "PLUS", "lexeme": "+", "line": 3, "col": 7 },
+          { "type": "ID", "lexeme": "b", "line": 3, "col": 9 },
+          { "type": "STAR", "lexeme": "*", "line": 3, "col": 11 },
+          { "type": "NUM", "lexeme": "2", "line": 3, "col": 13 },
+          { "type": "NEWLINE", "lexeme": "\n", "line": 3, "col": 14 },
+          { "type": "PRINT", "lexeme": "print", "line": 4, "col": 1 },
+          { "type": "LPAREN", "lexeme": "(", "line": 4, "col": 6 },
+          { "type": "ID", "lexeme": "c", "line": 4, "col": 7 },
+          { "type": "RPAREN", "lexeme": ")", "line": 4, "col": 8 },
+          { "type": "EOF", "lexeme": "", "line": 4, "col": 9 }
+        ]
+      }
+    },
+    {
+      "id": "syntactic",
+      "name": "Análisis sintáctico",
+      "status": "ok",
+      "summary": "Árbol AST construido con 4 sentencias",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Regla assign para 'a'",
+          "explain": "Se reconoce la asignación a = 5.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 5 }, "nodeIds": ["n1"] },
+          "ops": [
+            { "op": "rule", "name": "assign" },
+            { "op": "node", "id": "n1", "kind": "assign", "label": "a = 5" }
+          ]
+        },
+        {
+          "i": 1,
+          "title": "Precedencia de multiplicación",
+          "explain": "El operador '*' tiene mayor precedencia que '+', agrupando b * 2.",
+          "focus": { "span": { "line": 3, "col": 9, "len": 5 }, "nodeIds": ["n5", "n6"] },
+          "ops": [
+            { "op": "node", "id": "n5", "kind": "binop", "label": "*" },
+            { "op": "edge", "parent": "n4", "child": "n5" }
+          ]
+        }
+      ],
+      "output": {
+        "ast": {
+          "id": "root",
+          "kind": "program",
+          "children": [
+            { "id": "s1", "kind": "assign", "name": "a", "expr": { "id": "e1", "kind": "num", "value": 5 } },
+            { "id": "s2", "kind": "assign", "name": "b", "expr": { "id": "e2", "kind": "num", "value": 3 } },
+            {
+              "id": "s3",
+              "kind": "assign",
+              "name": "c",
+              "expr": {
+                "id": "e3",
+                "kind": "binop",
+                "op": "+",
+                "left": { "id": "e4", "kind": "var", "name": "a" },
+                "right": {
+                  "id": "e5",
+                  "kind": "binop",
+                  "op": "*",
+                  "left": { "id": "e6", "kind": "var", "name": "b" },
+                  "right": { "id": "e7", "kind": "num", "value": 2 }
+                }
+              }
+            },
+            { "id": "s4", "kind": "print", "expr": { "id": "e8", "kind": "var", "name": "c" } }
+          ]
+        }
+      }
+    },
+    {
+      "id": "semantic",
+      "name": "Análisis semántico",
+      "status": "ok",
+      "summary": "3 variables declaradas, 0 errores",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Declarar variable 'a'",
+          "explain": "Se registra 'a' en la tabla de símbolos en línea 1.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 1 }, "nodeIds": ["s1"] },
+          "ops": [{ "op": "declare", "name": "a", "line": 1, "type": "int" }]
+        },
+        {
+          "i": 1,
+          "title": "Verificar uso de 'c'",
+          "explain": "Variable 'c' fue declarada previamente en línea 3 antes de usarse en print.",
+          "focus": { "span": { "line": 4, "col": 7, "len": 1 }, "nodeIds": ["s4"] },
+          "ops": [{ "op": "lookup", "name": "c", "line": 4, "found": true }]
+        }
+      ],
+      "output": {
+        "symbols": [
+          { "name": "a", "type": "int", "line": 1, "uses": 1 },
+          { "name": "b", "type": "int", "line": 2, "uses": 1 },
+          { "name": "c", "type": "int", "line": 3, "uses": 1 }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "id": "ir",
+      "name": "Código intermedio",
+      "status": "ok",
+      "summary": "6 instrucciones TAC generadas",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Generar a = 5",
+          "explain": "Asignación directa de constante a variable a.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 5 }, "nodeIds": ["s1"] },
+          "ops": [{ "op": "emit", "index": 0, "text": "a = 5" }]
+        },
+        {
+          "i": 1,
+          "title": "Generar b = 3",
+          "explain": "Asignación directa de constante a variable b.",
+          "focus": { "span": { "line": 2, "col": 1, "len": 5 }, "nodeIds": ["s2"] },
+          "ops": [{ "op": "emit", "index": 1, "text": "b = 3" }]
+        },
+        {
+          "i": 2,
+          "title": "Generar t1 = b * 2",
+          "explain": "Cálculo de subexpresión con temporal t1.",
+          "focus": { "span": { "line": 3, "col": 9, "len": 5 }, "nodeIds": ["e5"] },
+          "ops": [{ "op": "emit", "index": 2, "text": "t1 = b * 2" }]
+        },
+        {
+          "i": 3,
+          "title": "Generar t2 = a + t1",
+          "explain": "Suma con temporal t2.",
+          "focus": { "span": { "line": 3, "col": 5, "len": 9 }, "nodeIds": ["e3"] },
+          "ops": [{ "op": "emit", "index": 3, "text": "t2 = a + t1" }]
+        },
+        {
+          "i": 4,
+          "title": "Generar c = t2",
+          "explain": "Asignación del resultado en c.",
+          "focus": { "span": { "line": 3, "col": 1, "len": 13 }, "nodeIds": ["s3"] },
+          "ops": [{ "op": "emit", "index": 4, "text": "c = t2" }]
+        },
+        {
+          "i": 5,
+          "title": "Generar print c",
+          "explain": "Instrucción de salida.",
+          "focus": { "span": { "line": 4, "col": 1, "len": 8 }, "nodeIds": ["s4"] },
+          "ops": [{ "op": "emit", "index": 5, "text": "print c" }]
+        }
+      ],
+      "output": {
+        "instructions": [
+          { "index": 0, "text": "a = 5" },
+          { "index": 1, "text": "b = 3" },
+          { "index": 2, "text": "t1 = b * 2" },
+          { "index": 3, "text": "t2 = a + t1" },
+          { "index": 4, "text": "c = t2" },
+          { "index": 5, "text": "print c" }
+        ]
+      }
+    },
+    {
+      "id": "optimization",
+      "name": "Optimización",
+      "status": "ok",
+      "summary": "Reducido de 6 a 1 instrucción (print 11)",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Propagación de constantes",
+          "explain": "Se reemplazan a y b por 5 y 3 en las expresiones.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [
+            { "op": "propagate", "var": "b", "val": 3 },
+            { "op": "propagate", "var": "a", "val": 5 }
+          ]
+        },
+        {
+          "i": 1,
+          "title": "Plegado de constantes",
+          "explain": "3 * 2 se calcula como 6, y 5 + 6 se calcula como 11.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [
+            { "op": "fold", "expr": "3 * 2", "result": 6 },
+            { "op": "fold", "expr": "5 + 6", "result": 11 }
+          ]
+        },
+        {
+          "i": 2,
+          "title": "Eliminación de código muerto",
+          "explain": "Las variables intermedias no vuelven a usarse y se eliminan.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [{ "op": "remove", "count": 5 }]
+        }
+      ],
+      "output": {
+        "instructions": [{ "index": 0, "text": "print 11" }],
+        "passes": [
+          { "name": "constant_propagation", "changes": 2 },
+          { "name": "constant_folding", "changes": 2 },
+          { "name": "dead_code_elimination", "changes": 5 }
+        ]
+      }
+    },
+    {
+      "id": "assembly",
+      "name": "Generación de ensamblador",
+      "status": "ok",
+      "summary": "3 instrucciones ensamblador con registros asignados",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Cargar constante en R0",
+          "explain": "LOADI R0, 11 prepara el valor a imprimir.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [
+            { "op": "alloc", "reg": "R0" },
+            { "op": "emit", "asm": "LOADI R0, 11" }
+          ]
+        },
+        {
+          "i": 1,
+          "title": "Imprimir desde R0",
+          "explain": "PRINT R0 escribe el contenido de R0.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [{ "op": "emit", "asm": "PRINT R0" }]
+        },
+        {
+          "i": 2,
+          "title": "Terminar ejecución",
+          "explain": "HALT finaliza el programa con código 0.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [
+            { "op": "free", "reg": "R0" },
+            { "op": "emit", "asm": "HALT" }
+          ]
+        }
+      ],
+      "output": {
+        "instructions": [
+          { "pc": 0, "text": "LOADI R0, 11", "fromIr": 0 },
+          { "pc": 1, "text": "PRINT R0", "fromIr": 0 },
+          { "pc": 2, "text": "HALT", "fromIr": null }
+        ]
+      }
+    },
+    {
+      "id": "binary",
+      "name": "Generación de binario",
+      "status": "ok",
+      "summary": "24 bytes codificados en formato ISA CompiLab",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Codificar LOADI R0, 11",
+          "explain": "Opcode 0x02, dst=0, src=0, reservado=0, imm=11.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [{ "op": "encode", "offset": 0, "bytes": "02 00 00 00 0b 00 00 00", "asm": "LOADI R0, 11" }]
+        },
+        {
+          "i": 1,
+          "title": "Codificar PRINT R0",
+          "explain": "Opcode 0x20, dst=0, src=0, reservado=0, imm=0.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [{ "op": "encode", "offset": 8, "bytes": "20 00 00 00 00 00 00 00", "asm": "PRINT R0" }]
+        },
+        {
+          "i": 2,
+          "title": "Codificar HALT",
+          "explain": "Opcode 0xFF.",
+          "focus": { "span": null, "nodeIds": [] },
+          "ops": [{ "op": "encode", "offset": 16, "bytes": "ff 00 00 00 00 00 00 00", "asm": "HALT" }]
+        }
+      ],
+      "output": {
+        "hex": "02 00 00 00 0b 00 00 00 20 00 00 00 00 00 00 00 ff 00 00 00 00 00 00 00",
+        "size": 24,
+        "rows": [
+          { "offset": 0, "bytes": "02 00 00 00 0b 00 00 00", "asm": "LOADI R0, 11", "ir": "print 11" },
+          { "offset": 8, "bytes": "20 00 00 00 00 00 00 00", "asm": "PRINT R0", "ir": "print 11" },
+          { "offset": 16, "bytes": "ff 00 00 00 00 00 00 00", "asm": "HALT", "ir": null }
+        ]
+      }
+    }
+  ],
+  "executable": {
+    "hex": "02 00 00 00 0b 00 00 00 20 00 00 00 00 00 00 00 ff 00 00 00 00 00 00 00",
+    "size": 24
+  },
+  "run": {
+    "stdout": ["11"],
+    "exitCode": 0,
+    "steps": [
+      { "pc": 0, "asm": "LOADI R0, 11", "registers": [11, 0, 0, 0, 0, 0, 0, 0] },
+      { "pc": 1, "asm": "PRINT R0", "registers": [11, 0, 0, 0, 0, 0, 0, 0] },
+      { "pc": 2, "asm": "HALT", "registers": [11, 0, 0, 0, 0, 0, 0, 0] }
+    ]
+  },
+  "error": null,
+  "meta": {
+    "sourceLength": 32,
+    "lineCount": 4,
+    "elapsedMs": 2.4
+  }
+}

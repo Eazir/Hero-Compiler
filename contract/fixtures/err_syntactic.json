@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "ok": false,
+  "phases": [
+    {
+      "id": "lexical",
+      "name": "Análisis léxico",
+      "status": "ok",
+      "summary": "5 tokens identificados",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Token ID 'c'",
+          "explain": "'c' reconocido en línea 1, columna 1.",
+          "focus": { "span": { "line": 1, "col": 1, "len": 1 }, "nodeIds": [] },
+          "ops": [{ "op": "token", "type": "ID", "lexeme": "c", "line": 1, "col": 1 }]
+        }
+      ],
+      "output": {
+        "tokens": [
+          { "type": "ID", "lexeme": "c", "line": 1, "col": 1 },
+          { "type": "ASSIGN", "lexeme": "=", "line": 1, "col": 3 },
+          { "type": "PLUS", "lexeme": "+", "line": 1, "col": 5 },
+          { "type": "NUM", "lexeme": "2", "line": 1, "col": 7 },
+          { "type": "EOF", "lexeme": "", "line": 1, "col": 8 }
+        ]
+      }
+    },
+    {
+      "id": "syntactic",
+      "name": "Análisis sintáctico",
+      "status": "error",
+      "summary": "Fallo sintáctico: operando inesperado o faltante",
+      "steps": [
+        {
+          "i": 0,
+          "title": "Error de sintaxis en expresión",
+          "explain": "Se esperaba un número, identificador o '(' después del signo '=', pero se encontró '+'.",
+          "focus": { "span": { "line": 1, "col": 5, "len": 1 }, "nodeIds": [] },
+          "ops": [
+            { "op": "fail", "code": "E-201", "message": "Falta un operando antes o después del operador '+'" }
+          ]
+        }
+      ],
+      "output": {
+        "ast": null
+      }
+    },
+    {
+      "id": "semantic",
+      "name": "Análisis semántico",
+      "status": "skipped",
+      "summary": "Omitida por error en fase sintáctica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "ir",
+      "name": "Código intermedio",
+      "status": "skipped",
+      "summary": "Omitida por error en fase sintáctica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "optimization",
+      "name": "Optimización",
+      "status": "skipped",
+      "summary": "Omitida por error en fase sintáctica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "assembly",
+      "name": "Generación de ensamblador",
+      "status": "skipped",
+      "summary": "Omitida por error en fase sintáctica",
+      "steps": [],
+      "output": null
+    },
+    {
+      "id": "binary",
+      "name": "Generación de binario",
+      "status": "skipped",
+      "summary": "Omitida por error en fase sintáctica",
+      "steps": [],
+      "output": null
+    }
+  ],
+  "executable": null,
+  "run": null,
+  "error": {
+    "code": "E-201",
+    "kind": "syntactic",
+    "phase": "syntactic",
+    "message": "Falta un operando en la expresión",
+    "why": "El operador binario '+' requiere operandos a ambos lados.",
+    "hint": "Coloca un número o variable antes del '+' o elimina el operador.",
+    "span": { "line": 1, "col": 5, "len": 1 },
+    "stepIndex": 0,
+    "fixes": [
+      {
+        "label": "Eliminar el '+' innecesario",
+        "kind": "remove_operator",
+        "line": 1,
+        "col": 5
+      }
+    ]
+  },
+  "meta": {
+    "sourceLength": 7,
+    "lineCount": 1,
+    "elapsedMs": 0.5
+  }
+}
