@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from compilab.compiler.errors import CompileError
 from compilab.compiler.lexer import tokenize
+from compilab.compiler.parser import parse
 from compilab.compiler.tracer import Tracer
 from compilab.contract.models import (
     EXPECTED_PHASE_ORDER,
@@ -66,7 +67,7 @@ def compile_code(req: CompileRequest) -> CompileResponse:
     start_time = time.perf_counter()
     line_count = len(req.source.splitlines()) if req.source else 0
 
-    # 1. En F1 el analizador léxico se ejecuta SIEMPRE de manera real
+    # 1. Análisis léxico real
     lex_tracer = Tracer()
     try:
         tokens = tokenize(req.source, lex_tracer)
@@ -91,8 +92,6 @@ def compile_code(req: CompileRequest) -> CompileResponse:
             meta=Meta(sourceLength=len(req.source), lineCount=line_count, elapsedMs=elapsed),
         )
 
-    # 2. Si el análisis léxico pasa exitosamente:
-    # Generar la fase léxica real
     real_lexical_phase = PhaseResult(
         id="lexical",
         name="Análisis léxico",
@@ -107,18 +106,52 @@ def compile_code(req: CompileRequest) -> CompileResponse:
         },
     )
 
-    # En F1, mientras se desarrollan F2-F5, las fases subsiguientes
+    # 2. Análisis sintáctico real
+    syn_tracer = Tracer()
+    try:
+        ast = parse(tokens, syn_tracer)
+    except CompileError as err:
+        phases = _init_phases()
+        phases[0] = real_lexical_phase
+        phases[1] = PhaseResult(
+            id="syntactic",
+            name="Análisis sintáctico",
+            status="error",
+            summary=f"Fallo sintáctico: {err.message}",
+            steps=syn_tracer.get_steps(),
+            output=None,
+        )
+        elapsed = (time.perf_counter() - start_time) * 1000.0
+        return CompileResponse(
+            version=1,
+            ok=False,
+            phases=phases,
+            executable=None,
+            run=None,
+            error=err.to_error_info(),
+            meta=Meta(sourceLength=len(req.source), lineCount=line_count, elapsedMs=elapsed),
+        )
+
+    real_syntactic_phase = PhaseResult(
+        id="syntactic",
+        name="Análisis sintáctico",
+        status="ok",
+        summary=f"Árbol AST construido con {len(ast.statements)} sentencia(s)",
+        steps=syn_tracer.get_steps(),
+        output={"ast": ast.to_dict()},
+    )
+
+    # En F2, mientras se desarrollan F3-F5, las fases subsiguientes
     # se integran desde fixtures de referencia
-    if "+ 2" in src or "+2" in src:
-        data = _load_fixture("err_syntactic.json")
-    elif "d" in src:
+    if "d" in src:
         data = _load_fixture("err_semantic.json")
     else:
         data = _load_fixture("ok_basic.json")
 
     resp = CompileResponse.model_validate(data)
-    # Reemplazar la fase léxica simulada por la fase léxica REAL analizada por el lexer
+    # Reemplazar fases simuladas por fases REALES
     resp.phases[0] = real_lexical_phase
+    resp.phases[1] = real_syntactic_phase
     elapsed = (time.perf_counter() - start_time) * 1000.0
     resp.meta = Meta(sourceLength=len(req.source), lineCount=line_count, elapsedMs=elapsed)
     return resp
