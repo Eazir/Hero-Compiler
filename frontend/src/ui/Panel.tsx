@@ -38,3 +38,4 @@ export const Panel: React.FC<PanelProps> = ({ title, badge, children, style, ...
     </div>
   );
 };
+

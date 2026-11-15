@@ -1,4 +1,5 @@
 """Codificador binario y decodificador (ISA CompiLab) (F5)."""
+
 from compilab.compiler.assembler import AsmInstr
 from compilab.compiler.tracer import Tracer
 

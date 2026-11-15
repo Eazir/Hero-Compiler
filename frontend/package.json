@@ -12,14 +12,18 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.3",
     "zod": "^3.22.4",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
     "@types/node": "^20.11.24",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.2.1",
+    "jsdom": "^24.0.0",
     "msw": "^2.2.8",
     "typescript": "^5.4.2",
     "vite": "^5.1.6",

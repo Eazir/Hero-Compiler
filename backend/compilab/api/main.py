@@ -1,4 +1,5 @@
 """Punto de entrada principal de la aplicación FastAPI."""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

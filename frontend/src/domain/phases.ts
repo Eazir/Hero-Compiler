@@ -16,3 +16,4 @@ export const PHASES_META: PhaseMeta[] = [
   { id: 'assembly', name: es.phases.assembly, order: 5 },
   { id: 'binary', name: es.phases.binary, order: 6 },
 ];
+

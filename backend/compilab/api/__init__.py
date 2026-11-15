@@ -1,3 +1,1 @@
-from compilab.api.main import app
-
-__all__ = ["app"]
+"""Paquete de la API HTTP de CompiLab."""

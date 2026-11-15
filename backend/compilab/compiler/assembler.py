@@ -1,5 +1,7 @@
 """Generador de código ensamblador (F5)."""
+
 from dataclasses import dataclass
+
 from compilab.compiler.ir import TacInstr
 from compilab.compiler.tracer import Tracer
 

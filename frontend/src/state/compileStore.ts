@@ -33,3 +33,4 @@ export const useCompileStore = create<CompileState>((set) => ({
   reset: () => set({ status: 'idle', trace: null, errorMessage: null }),
   setTrace: (trace: CompileResponse) => set({ status: trace.ok ? 'done' : 'failed', trace }),
 }));
+

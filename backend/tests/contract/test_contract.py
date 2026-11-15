@@ -1,7 +1,10 @@
 """Pruebas de validación de contrato para todas las fixtures compartidas."""
+
 import json
 import pathlib
+
 import pytest
+
 from compilab.contract.models import CompileResponse
 
 FIXTURES_DIR = pathlib.Path(__file__).resolve().parents[3] / "contract" / "fixtures"

@@ -27,3 +27,4 @@ export function applyFix(program: Program, fix: StructuredFix): Program {
   }
   return program;
 }
+
