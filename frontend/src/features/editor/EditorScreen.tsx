@@ -153,11 +153,12 @@ export const EditorScreen: React.FC = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
           gap: '20px',
+          minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           <Palette onSelectFragment={handleSelectFragment} disabled={fragmentCount >= 12} />
           <BlockCanvas
             program={program}
@@ -170,7 +171,7 @@ export const EditorScreen: React.FC = () => {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
           <CodePreview
             sourceText={text}
             isCompiling={status === 'loading'}

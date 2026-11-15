@@ -68,44 +68,49 @@ export const CodePreview: React.FC<CodePreviewProps> = ({
       <div
         style={{
           display: 'flex',
-          gap: '12px',
-          marginTop: '14px',
+          gap: '10px',
+          marginTop: '16px',
           flexWrap: 'wrap',
           alignItems: 'center',
+          minWidth: 0,
         }}
       >
         <Button
           variant="primary"
           onClick={onCompile}
           disabled={isCompiling || !sourceText.trim()}
+          style={{ flexGrow: 1, minWidth: '130px' }}
         >
-          {isCompiling ? 'Compilando...' : 'Compilar'}
+          {isCompiling ? 'Compilando...' : 'Compilar Programa'}
         </Button>
 
         {onQuickLoad && (
-          <>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => onQuickLoad('a = @')}
+              title="Error léxico E-101: carácter inválido @"
             >
               Probar E-101
             </Button>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onQuickLoad('a = 3b')}
+              onClick={() => onQuickLoad('c = + 2')}
+              title="Error sintáctico E-201: falta operando"
             >
-              Probar E-102
+              Probar E-201
             </Button>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onQuickLoad('c = + 2')}
+              onClick={() => onQuickLoad('a = d + 1')}
+              title="Error semántico E-301: variable d no declarada"
             >
-              Probar E-201
+              Probar E-301
             </Button>
-          </>
+          </div>
         )}
       </div>
     </Panel>

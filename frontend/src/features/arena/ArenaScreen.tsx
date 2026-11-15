@@ -1,40 +1,71 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useCompileStore } from '../../state/compileStore';
 import { PHASES_META } from '../../domain/phases';
-import { PhaseId } from '../../api/schema';
-import { PhaseStepper } from './PhaseStepper';
-import { Panel } from '../../ui/Panel';
+import { es } from '../../i18n/es';
+import { useCompileStore } from '../../state/compileStore';
+import { usePlayerStore } from '../../state/playerStore';
 import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
-import { es } from '../../i18n/es';
+import { Panel } from '../../ui/Panel';
+import { ExplainPanel } from './ExplainPanel';
+import { PhasePlayer } from './PhasePlayer';
+import { PhaseStepper } from './PhaseStepper';
+import { AstView } from './views/AstView';
+import { SymbolsView } from './views/SymbolsView';
+import { TokensView } from './views/TokensView';
 
 export const ArenaScreen: React.FC = () => {
   const navigate = useNavigate();
   const { trace } = useCompileStore();
-  const [selectedPhase, setSelectedPhase] = useState<PhaseId>('lexical');
+  const {
+    activePhase,
+    stepIndex,
+    setActivePhase,
+  } = usePlayerStore();
 
   // Guardia de navegación: sin traza redirige a /
   if (!trace) {
     return <Navigate to="/" replace />;
   }
 
-  const currentPhaseData = trace.phases.find((p) => p.id === selectedPhase);
+  const currentPhaseData = trace.phases.find((p) => p.id === activePhase);
   const donePhases = trace.phases.filter((p) => p.status === 'ok').map((p) => p.id);
   const errorPhase = trace.phases.find((p) => p.status === 'error')?.id || null;
 
+  const totalSteps = currentPhaseData?.steps.length || 0;
+  const currentStep = totalSteps > 0 && currentPhaseData?.steps[stepIndex]
+    ? currentPhaseData.steps[stepIndex]
+    : null;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, maxWidth: '100%' }}>
+      {/* Encabezado con navegación */}
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>
+          <h2
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: 'var(--text-pure)',
+              letterSpacing: '-0.02em',
+            }}
+          >
             {es.app.nav.arena}
           </h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-            Reproducción paso a paso de las 7 fases del compilador MiniArit.
+            Animación paso a paso de las fases del compilador MiniArit.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <Button variant="secondary" size="sm" onClick={() => navigate('/')}>
             ← Volver al Editor
           </Button>
@@ -46,22 +77,37 @@ export const ArenaScreen: React.FC = () => {
         </div>
       </header>
 
-      {/* Stepper interactivo de las 7 fases */}
+      {/* Stepper horizontal de las 7 fases */}
       <PhaseStepper
         phases={PHASES_META}
-        active={selectedPhase}
+        active={activePhase}
         done={donePhases}
         errorPhase={errorPhase}
-        onSelectPhase={(phase) => setSelectedPhase(phase)}
+        onSelectPhase={(phase) => setActivePhase(phase)}
       />
 
-      {/* Detalle y explicación de la fase seleccionada */}
+      {/* Reproductor interactivo 1 a 1 de la fase actual */}
+      {currentPhaseData && (
+        <PhasePlayer
+          totalSteps={totalSteps}
+          phaseName={currentPhaseData.name}
+        />
+      )}
+
+      {/* Panel de explicación del paso actual con accesibilidad aria-live="polite" */}
+      <ExplainPanel
+        step={currentStep}
+        stepIndex={stepIndex}
+        totalSteps={totalSteps}
+      />
+
+      {/* Vista interactiva específica según la fase activa */}
       {currentPhaseData && (
         <Panel
-          title={`${currentPhaseData.name} — Detalle de la Fase`}
+          title={`${currentPhaseData.name} — Visualización`}
           badge={
             <Chip
-              label={`Status: ${currentPhaseData.status.toUpperCase()}`}
+              label={currentPhaseData.status.toUpperCase()}
               variant={
                 currentPhaseData.status === 'ok'
                   ? 'green'
@@ -72,73 +118,53 @@ export const ArenaScreen: React.FC = () => {
             />
           }
         >
-          <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>{currentPhaseData.summary}</p>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '14px' }}>
+            {currentPhaseData.summary}
+          </p>
 
-          {/* Si estamos en fase léxica y hay tokens, mostrar vista de tokens */}
-          {selectedPhase === 'lexical' && currentPhaseData.output?.tokens && (
-            <div style={{ marginTop: '16px' }}>
-              <h4 style={{ fontSize: '0.85rem', color: 'var(--cyan)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                Tokens Identificados ({currentPhaseData.output.tokens.length}):
-              </h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {currentPhaseData.output.tokens.map((tok: any, idx: number) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '4px 10px',
-                      backgroundColor: 'var(--panel-2)',
-                      border: '1px solid var(--line)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.8rem',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>{tok.type}</span>
-                    <strong style={{ color: 'var(--amber)' }}>{tok.lexeme === '\n' ? '\\n' : tok.lexeme || 'EOF'}</strong>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.65rem' }}>L{tok.line}:C{tok.col}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* 1. Vista de Tokens (Léxico) */}
+          {activePhase === 'lexical' && currentPhaseData.output?.tokens && (
+            <TokensView
+              tokens={currentPhaseData.output.tokens}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
           )}
 
-          {/* Pasos de traza registrados */}
-          <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <h4 style={{ fontSize: '0.85rem', color: 'var(--amber)', textTransform: 'uppercase' }}>
-              Traza Paso a Paso ({currentPhaseData.steps.length} pasos):
-            </h4>
-            {currentPhaseData.steps.length === 0 ? (
-              <p style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                Esta fase no registró pasos o fue omitida.
-              </p>
-            ) : (
-              currentPhaseData.steps.map((st) => (
-                <div
-                  key={st.i}
-                  style={{
-                    padding: '12px 16px',
-                    backgroundColor: 'var(--panel-2)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ color: 'var(--text)' }}>#{st.i + 1} {st.title}</strong>
-                    {st.focus?.span && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-                        Línea {st.focus.span.line}, Col {st.focus.span.col}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ color: 'var(--muted)', marginTop: '4px' }}>{st.explain}</p>
-                </div>
-              ))
-            )}
-          </div>
+          {/* 2. Vista de AST (Sintáctico) */}
+          {activePhase === 'syntactic' && currentPhaseData.output?.ast && (
+            <AstView
+              ast={currentPhaseData.output.ast}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
+          )}
+
+          {/* 3. Vista de Tabla de Símbolos (Semántico) */}
+          {activePhase === 'semantic' && currentPhaseData.output && (
+            <SymbolsView
+              symbols={currentPhaseData.output.symbols || []}
+              warnings={currentPhaseData.output.warnings || []}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
+          )}
+
+          {/* Fases 4-7: Resumen e información preliminar */}
+          {!['lexical', 'syntactic', 'semantic'].includes(activePhase) && (
+            <div
+              style={{
+                padding: '24px',
+                textAlign: 'center',
+                color: 'var(--muted)',
+                backgroundColor: 'var(--panel-2)',
+                borderRadius: 'var(--radius-md)',
+                fontStyle: 'italic',
+              }}
+            >
+              Visualización especializada de {currentPhaseData.name} lista para las fases F4 a F7.
+            </div>
+          )}
         </Panel>
       )}
     </div>

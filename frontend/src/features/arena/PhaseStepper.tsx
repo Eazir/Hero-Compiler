@@ -34,50 +34,55 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
     switch (state) {
       case 'active':
         return {
-          border: 'var(--amber)',
-          color: 'var(--amber)',
-          bg: 'var(--panel-2)',
-          dot: 'var(--amber)',
+          border: '1px solid var(--blue-bright)',
+          color: '#FFFFFF',
+          bg: 'linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(56, 189, 248, 0.15))',
+          dot: 'var(--blue-bright)',
           cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(37, 99, 235, 0.25)',
         };
       case 'done':
         return {
-          border: 'var(--green)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
           color: 'var(--text)',
-          bg: 'rgba(94, 224, 160, 0.08)',
-          dot: 'var(--green)',
+          bg: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08))',
+          dot: 'var(--green-vibrant)',
           cursor: 'pointer',
+          boxShadow: 'none',
         };
       case 'error':
         return {
-          border: 'var(--red)',
+          border: '1px solid var(--red)',
           color: 'var(--red)',
-          bg: 'rgba(255, 111, 125, 0.1)',
+          bg: 'rgba(244, 63, 94, 0.12)',
           dot: 'var(--red)',
           cursor: 'pointer',
+          boxShadow: 'none',
         };
       case 'locked':
       default:
         return {
-          border: 'var(--line)',
+          border: '1px solid var(--line)',
           color: 'var(--muted)',
-          bg: 'rgba(22, 28, 48, 0.4)',
+          bg: 'rgba(15, 23, 42, 0.4)',
           dot: 'var(--line)',
           cursor: 'not-allowed',
+          boxShadow: 'none',
         };
     }
   };
 
   return (
-    <nav aria-label="Progreso de las 7 fases del compilador">
+    <nav aria-label="Progreso de las 7 fases del compilador" style={{ width: '100%', overflowX: 'auto' }}>
       <ol
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
           gap: '10px',
           listStyle: 'none',
           padding: 0,
           margin: 0,
+          minWidth: 0,
         }}
       >
         {phases.map((p, idx) => {
@@ -106,17 +111,27 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '6px',
-                padding: '10px 14px',
-                backgroundColor: s.bg,
-                border: `1px solid ${s.border}`,
+                padding: '10px 12px',
                 borderRadius: 'var(--radius-md)',
+                backgroundColor: s.bg,
+                border: s.border,
+                color: s.color,
+                boxShadow: s.boxShadow,
                 cursor: s.cursor,
-                transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
-                outline: 'none',
+                transition: 'all var(--motion-fast) ease',
+                userSelect: 'none',
+                minWidth: 0,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    opacity: 0.7,
+                  }}
+                >
                   0{idx + 1}
                 </span>
                 <span
@@ -128,20 +143,16 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
                   }}
                 />
               </div>
-              <strong style={{ fontSize: '0.875rem', color: s.color, fontWeight: 600 }}>
-                {p.name}
-              </strong>
               <span
                 style={{
-                  fontSize: '0.7rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: s.color,
+                  fontSize: '0.8rem',
                   fontWeight: 600,
-                  opacity: 0.85,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
-                {state === 'done' ? 'Completa' : state === 'active' ? 'Activa' : state === 'error' ? 'Fallo' : 'Bloqueada'}
+                {p.name}
               </span>
             </li>
           );
