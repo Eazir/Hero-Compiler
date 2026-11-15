@@ -21,6 +21,8 @@ export const EditorScreen: React.FC = () => {
     activeSlot,
     setActiveSlot,
     insertFragment,
+    updateNode,
+    updateVariableName,
     removeStatement,
     undo,
     canUndo,
@@ -33,8 +35,8 @@ export const EditorScreen: React.FC = () => {
 
   const { text } = toSource(program);
 
-  const handleSelectFragment = (type: FragmentType) => {
-    const res = insertFragment(type);
+  const handleSelectFragment = (type: FragmentType, slot?: BlockPath) => {
+    const res = insertFragment(type, slot);
     if (!res.ok) {
       if (res.reason === 'MAX_FRAGMENTS') {
         setWarningMessage('El fragmento 13 fue rechazado: el límite máximo es de 12 fragmentos.');
@@ -47,10 +49,7 @@ export const EditorScreen: React.FC = () => {
   };
 
   const handleDropFragment = (type: FragmentType, slot?: BlockPath) => {
-    if (slot) {
-      setActiveSlot(slot);
-    }
-    handleSelectFragment(type);
+    handleSelectFragment(type, slot);
   };
 
   const handleCompile = async () => {
@@ -166,6 +165,8 @@ export const EditorScreen: React.FC = () => {
             onSelectSlot={setActiveSlot}
             onRemoveStmt={removeStatement}
             onDropFragment={handleDropFragment}
+            onUpdateNode={updateNode}
+            onUpdateVarName={updateVariableName}
           />
         </div>
 

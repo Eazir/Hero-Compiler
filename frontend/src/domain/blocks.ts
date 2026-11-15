@@ -211,3 +211,54 @@ export function updateNodeAtPath(
 
   return newProgram;
 }
+
+/**
+ * Obtiene el nodo (Expr o Stmt) ubicado en la ruta especificada.
+ */
+export function getNodeAtPath(
+  program: Program,
+  path: (string | number)[]
+): Expr | Stmt | null {
+  if (path.length === 0) return null;
+  const [stmtIdxRaw, ...rest] = path;
+  const stmtIdx = typeof stmtIdxRaw === 'number' ? stmtIdxRaw : parseInt(stmtIdxRaw, 10);
+  if (stmtIdx < 0 || stmtIdx >= program.length) return null;
+
+  const stmt = program[stmtIdx];
+  if (rest.length === 0) return stmt;
+
+  if (rest[0] === 'expr') {
+    let curr: Expr = stmt.expr;
+    for (let i = 1; i < rest.length; i++) {
+      const part = rest[i];
+      if (curr.kind === 'neg' && part === 'operand') {
+        curr = curr.operand;
+      } else if (curr.kind === 'bin') {
+        if (part === 'left') curr = curr.left;
+        else if (part === 'right') curr = curr.right;
+        else return null;
+      } else {
+        return null;
+      }
+    }
+    return curr;
+  }
+  return null;
+}
+
+/**
+ * Modifica el nombre de la variable de una asignación en el índice indicado.
+ */
+export function updateStmtName(
+  program: Program,
+  index: number,
+  newName: string
+): Program {
+  if (index < 0 || index >= program.length) return program;
+  const stmt = program[index];
+  if (stmt.kind !== 'assign') return program;
+  const next = [...program];
+  next[index] = { ...stmt, name: newName };
+  return next;
+}
+
