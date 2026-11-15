@@ -11,12 +11,17 @@ export const Panel: React.FC<PanelProps> = ({ title, badge, children, style, ...
       {...props}
       style={{
         backgroundColor: 'var(--panel)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid var(--line)',
         borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-lg)',
         padding: '20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '14px',
+        minWidth: 0,
+        maxWidth: '100%',
         ...style,
       }}
     >
@@ -28,14 +33,26 @@ export const Panel: React.FC<PanelProps> = ({ title, badge, children, style, ...
             alignItems: 'center',
             borderBottom: '1px solid var(--line)',
             paddingBottom: '12px',
+            gap: '12px',
+            flexWrap: 'wrap',
           }}
         >
-          {title && <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text)' }}>{title}</h3>}
+          {title && (
+            <h3
+              style={{
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                color: 'var(--text-pure)',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {title}
+            </h3>
+          )}
           {badge}
         </div>
       )}
-      {children}
+      <div style={{ minWidth: 0, maxWidth: '100%' }}>{children}</div>
     </div>
   );
 };
-

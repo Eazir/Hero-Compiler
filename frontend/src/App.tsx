@@ -32,13 +32,15 @@ export const App: React.FC = () => {
     fontSize: '0.875rem',
     fontWeight: 600,
     fontFamily: 'var(--font-ui)',
-    minHeight: '44px',
+    minHeight: '40px',
     display: 'inline-flex',
     alignItems: 'center',
-    color: isActive ? 'var(--amber)' : 'var(--muted)',
-    backgroundColor: isActive ? 'var(--panel-2)' : 'transparent',
-    border: `1px solid ${isActive ? 'var(--amber)' : 'transparent'}`,
+    color: isActive ? '#FFFFFF' : 'var(--muted)',
+    backgroundColor: isActive ? 'rgba(37, 99, 235, 0.2)' : 'transparent',
+    border: `1px solid ${isActive ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}`,
+    boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.2)' : 'none',
     transition: 'all var(--motion-fast)',
+    whiteSpace: 'nowrap' as const,
   });
 
   return (
@@ -46,11 +48,13 @@ export const App: React.FC = () => {
       style={{
         maxWidth: '1280px',
         margin: '0 auto',
-        padding: '20px 24px',
+        padding: '16px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '24px',
+        gap: '20px',
         minHeight: '100vh',
+        minWidth: 0,
+        width: '100%',
       }}
     >
       {/* Barra superior de navegación y estado */}
@@ -62,30 +66,33 @@ export const App: React.FC = () => {
           borderBottom: '1px solid var(--line)',
           paddingBottom: '16px',
           flexWrap: 'wrap',
-          gap: '16px',
+          gap: '14px',
+          minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+          <div style={{ minWidth: 0 }}>
             <h1
               style={{
                 fontSize: '1.75rem',
-                fontWeight: 700,
-                color: 'var(--amber)',
-                letterSpacing: '-0.02em',
+                fontWeight: 800,
+                background: 'var(--accent-gradient)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                letterSpacing: '-0.03em',
                 lineHeight: 1.1,
               }}
             >
               {es.app.title}
             </h1>
-            <p style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>{es.app.subtitle}</p>
+            <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: '2px' }}>{es.app.subtitle}</p>
           </div>
           <Chip label="v1.0" variant="cyan" />
         </div>
 
         {/* Enlaces de navegación entre las 4 pantallas */}
-        <nav aria-label="Navegación principal">
-          <ul style={{ display: 'flex', gap: '8px', listStyle: 'none', padding: 0, margin: 0, alignItems: 'center' }}>
+        <nav aria-label="Navegación principal" style={{ minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
+          <ul style={{ display: 'flex', gap: '8px', listStyle: 'none', padding: 0, margin: 0, alignItems: 'center', flexWrap: 'wrap' }}>
             <li>
               <NavLink to="/" style={navLinkStyle}>
                 {es.app.nav.editor}
