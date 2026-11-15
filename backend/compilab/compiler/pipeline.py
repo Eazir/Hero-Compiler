@@ -11,7 +11,9 @@ from __future__ import annotations
 import time
 
 from compilab.compiler.errors import CompileError
+from compilab.compiler.ir import TacInstr, lower
 from compilab.compiler.lexer import Token, tokenize
+from compilab.compiler.optimizer import optimize as optimize_tac
 from compilab.compiler.parser import ProgramNode, parse
 from compilab.compiler.semantic import SemanticInfo, analyze
 from compilab.compiler.tracer import Tracer
@@ -145,6 +147,87 @@ def compile_source(source: str, optimize: bool = True) -> CompileResponse:
             status="error",
             summary=f"Fallo semántico: {err.message}",
             steps=sem_tracer.get_steps(),
+            output=None,
+        )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return CompileResponse(
+            version=1,
+            ok=False,
+            phases=phases,
+            executable=None,
+            run=None,
+            error=err.to_error_info(),
+            meta=Meta(sourceLength=len(source), lineCount=line_count, elapsedMs=elapsed_ms),
+        )
+
+    # 4. Fase de código intermedio (TAC)
+    ir_tracer = Tracer()
+    ir_instrs: list[TacInstr]
+    try:
+        ir_instrs = lower(ast, ir_tracer)
+        phases[3] = PhaseResult(
+            id="ir",
+            name="Código intermedio",
+            status="ok",
+            summary=f"{len(ir_instrs)} instrucciones TAC generadas",
+            steps=ir_tracer.get_steps(),
+            output={
+                "instructions": [
+                    {"index": i, "text": str(ins)} for i, ins in enumerate(ir_instrs)
+                ]
+            },
+        )
+    except CompileError as err:
+        phases[3] = PhaseResult(
+            id="ir",
+            name="Código intermedio",
+            status="error",
+            summary=f"Fallo en código intermedio: {err.message}",
+            steps=ir_tracer.get_steps(),
+            output=None,
+        )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return CompileResponse(
+            version=1,
+            ok=False,
+            phases=phases,
+            executable=None,
+            run=None,
+            error=err.to_error_info(),
+            meta=Meta(sourceLength=len(source), lineCount=line_count, elapsedMs=elapsed_ms),
+        )
+
+    # 5. Fase de optimización
+    opt_tracer = Tracer()
+    opt_instrs: list[TacInstr]
+    try:
+        opt_instrs = optimize_tac(ir_instrs, opt_tracer, enabled=optimize)
+        before_count = len(ir_instrs)
+        after_count = len(opt_instrs)
+        summary = (
+            f"Reducido de {before_count} a {after_count} instrucción(es)"
+            if optimize
+            else f"Optimización desactivada ({after_count} instrucciones conservadas)"
+        )
+        phases[4] = PhaseResult(
+            id="optimization",
+            name="Optimización",
+            status="ok",
+            summary=summary,
+            steps=opt_tracer.get_steps(),
+            output={
+                "instructions": [
+                    {"index": i, "text": str(ins)} for i, ins in enumerate(opt_instrs)
+                ]
+            },
+        )
+    except CompileError as err:
+        phases[4] = PhaseResult(
+            id="optimization",
+            name="Optimización",
+            status="error",
+            summary=f"Fallo en optimización: {err.message}",
+            steps=opt_tracer.get_steps(),
             output=None,
         )
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

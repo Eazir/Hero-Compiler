@@ -70,4 +70,30 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     expect(screen.getByRole('heading', { name: /tabla de símbolos/i })).toBeInTheDocument();
     expect(screen.getByText('Identificador')).toBeInTheDocument();
   });
+
+  test('en la fase de código intermedio se visualizan las instrucciones TAC', () => {
+    usePlayerStore.setState({ activePhase: 'ir', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText(/instrucciones de código intermedio/i)).toBeInTheDocument();
+    expect(screen.getByText('t1 = b * 2')).toBeInTheDocument();
+  });
+
+  test('en la fase de optimización se visualiza la reducción de instrucciones', () => {
+    usePlayerStore.setState({ activePhase: 'optimization', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText(/instrucciones optimizadas/i)).toBeInTheDocument();
+    expect(screen.getByText('print 11')).toBeInTheDocument();
+  });
 });
