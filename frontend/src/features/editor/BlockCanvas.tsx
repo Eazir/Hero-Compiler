@@ -1,5 +1,5 @@
 import React from 'react';
-import { Expr, FragmentType, Program, Stmt } from '../../domain/blocks';
+import { Expr, FragmentType, Program, Stmt, bin, num, v } from '../../domain/blocks';
 import { BlockPath } from '../../domain/sourceMap';
 import { Panel } from '../../ui/Panel';
 
@@ -9,6 +9,8 @@ interface BlockCanvasProps {
   onSelectSlot: (slot: BlockPath | null) => void;
   onRemoveStmt: (index: number) => void;
   onDropFragment: (type: FragmentType, slot?: BlockPath) => void;
+  onUpdateNode: (path: BlockPath, replacement: Expr | Stmt) => void;
+  onUpdateVarName: (index: number, name: string) => void;
 }
 
 export const BlockCanvas: React.FC<BlockCanvasProps> = ({
@@ -17,6 +19,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
   onSelectSlot,
   onRemoveStmt,
   onDropFragment,
+  onUpdateNode,
+  onUpdateVarName,
 }) => {
   const isSlotActive = (path: BlockPath) => {
     if (!activeSlot) return false;
@@ -77,9 +81,30 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
             }}
-            title="Constante numérica (haz clic o Enter para seleccionar ranura)"
+            title="Constante numérica editable (haz clic para escribir un número o arrastra otro fragmento)"
           >
-            {expr.value}
+            <input
+              type="number"
+              value={expr.value}
+              aria-label="Editar valor numérico"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                onUpdateNode(path, num(isNaN(val) ? 0 : val));
+              }}
+              style={{
+                width: `${Math.max(2, String(expr.value).length + 1)}ch`,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--violet)',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                textAlign: 'center',
+                outline: 'none',
+                padding: 0,
+              }}
+            />
           </span>
         );
 
@@ -107,9 +132,31 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
             }}
-            title="Variable (haz clic o Enter para seleccionar ranura)"
+            title="Variable editable (haz clic para cambiar el nombre o arrastra otro fragmento)"
           >
-            {expr.name}
+            <input
+              type="text"
+              value={expr.name}
+              maxLength={8}
+              aria-label="Editar identificador de variable"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                onUpdateNode(path, v(val || 'x'));
+              }}
+              style={{
+                width: `${Math.max(2, expr.name.length + 1)}ch`,
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--cyan)',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                textAlign: 'center',
+                outline: 'none',
+                padding: 0,
+              }}
+            />
           </span>
         );
 
@@ -117,6 +164,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
         return (
           <span
             role="group"
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
               border: active ? '2px solid var(--amber)' : '1px solid var(--line)',
@@ -135,6 +184,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
         return (
           <span
             role="group"
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
               border: active ? '2px solid var(--amber)' : '1px solid var(--line)',
@@ -148,19 +199,28 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             }}
           >
             {renderExpr(expr.left, [...path, 'left'])}
-            <span
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const nextOp = expr.op === '+' ? '-' : expr.op === '-' ? '*' : '+';
+                onUpdateNode(path, bin(nextOp, expr.left, expr.right));
+              }}
+              title="Cambiar operador (+, -, *)"
               style={{
-                padding: '2px 6px',
+                padding: '2px 8px',
                 borderRadius: '4px',
-                backgroundColor: 'rgba(255, 184, 77, 0.15)',
+                backgroundColor: 'rgba(255, 184, 77, 0.2)',
+                border: '1px solid var(--amber)',
                 color: 'var(--amber)',
                 fontWeight: 700,
                 fontSize: '0.85rem',
                 fontFamily: 'var(--font-mono)',
+                cursor: 'pointer',
               }}
             >
               {expr.op}
-            </span>
+            </button>
             {renderExpr(expr.right, [...path, 'right'])}
           </span>
         );
@@ -171,6 +231,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
     return (
       <div
         key={idx}
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, [idx, 'expr'])}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -181,6 +243,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
           borderRadius: 'var(--radius-md)',
           gap: '12px',
           minHeight: '44px',
+          transition: 'border-color 0.15s ease',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -190,6 +253,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               fontFamily: 'var(--font-mono)',
               fontSize: '0.8rem',
               width: '24px',
+              userSelect: 'none',
             }}
           >
             {idx + 1}.
@@ -197,18 +261,31 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
 
           {stmt.kind === 'assign' ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  color: 'var(--cyan)',
-                  fontWeight: 700,
-                  fontFamily: 'var(--font-mono)',
-                  padding: '2px 6px',
-                  backgroundColor: 'rgba(94, 212, 232, 0.1)',
-                  borderRadius: '4px',
+              <input
+                type="text"
+                value={stmt.name}
+                maxLength={8}
+                aria-label="Editar identificador asignado"
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                  onUpdateVarName(idx, val || 'x');
                 }}
-              >
-                {stmt.name}
-              </span>
+                style={{
+                  width: `${Math.max(2, stmt.name.length + 1)}ch`,
+                  backgroundColor: 'rgba(94, 212, 232, 0.15)',
+                  border: '1px solid var(--cyan)',
+                  borderRadius: '4px',
+                  color: 'var(--cyan)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  textAlign: 'center',
+                  outline: 'none',
+                  padding: '2px 4px',
+                }}
+                title="Variable de asignación (editable)"
+              />
               <span style={{ color: 'var(--muted)', fontWeight: 600 }}>=</span>
               {renderExpr(stmt.expr, [idx, 'expr'])}
             </div>
@@ -239,7 +316,10 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
 
         <button
           type="button"
-          onClick={() => onRemoveStmt(idx)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemoveStmt(idx);
+          }}
           aria-label={`Eliminar línea ${idx + 1}`}
           title="Eliminar esta línea"
           style={{
@@ -247,9 +327,14 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             border: 'none',
             color: 'var(--muted)',
             cursor: 'pointer',
-            fontSize: '1.1rem',
+            fontSize: '1.2rem',
             padding: '4px 8px',
             borderRadius: '4px',
+            minHeight: '36px',
+            minWidth: '36px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           ×
@@ -260,43 +345,125 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
 
   return (
     <Panel title="Lienzo de Bloques">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          minHeight: '180px',
+        }}
+      >
         {program.length === 0 ? (
           <div
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e)}
             style={{
-              padding: '30px',
+              padding: '36px 20px',
               border: '2px dashed var(--line)',
               borderRadius: 'var(--radius-md)',
               textAlign: 'center',
               color: 'var(--muted)',
-              fontSize: '0.9rem',
+              fontSize: '0.95rem',
             }}
           >
-            El programa está vacío. Arrastra una <strong>asignación</strong> o <strong>print</strong> aquí, o selecciónala en la paleta.
+            <p style={{ marginBottom: '14px' }}>
+              El programa está vacío. Arrastra una <strong>asignación</strong> o <strong>print</strong> aquí, o haz clic en los botones de abajo:
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => onDropFragment('assign')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(94, 212, 232, 0.15)',
+                  border: '1px solid var(--cyan)',
+                  color: 'var(--cyan)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                }}
+              >
+                + Asignación (x = 1)
+              </button>
+              <button
+                type="button"
+                onClick={() => onDropFragment('print')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(94, 224, 160, 0.15)',
+                  border: '1px solid var(--green)',
+                  color: 'var(--green)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                }}
+              >
+                + Print (print(x))
+              </button>
+            </div>
           </div>
         ) : (
           program.map((stmt, idx) => renderStmt(stmt, idx))
         )}
 
-        {/* Zona para soltar nueva sentencia */}
-        {program.length < 8 && (
+        {/* Zona para agregar sentencias adicionales */}
+        {program.length > 0 && program.length < 8 && (
           <div
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e)}
             style={{
-              marginTop: '4px',
-              padding: '10px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '10px 14px',
               border: '1px dashed var(--line)',
               borderRadius: 'var(--radius-md)',
-              textAlign: 'center',
-              color: 'var(--muted)',
-              fontSize: '0.8rem',
               backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              gap: '10px',
+              flexWrap: 'wrap',
             }}
           >
-            + Arrastra un fragmento aquí para agregar otra sentencia
+            <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
+              Arrastra un fragmento aquí o añade rápidamente:
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => onDropFragment('assign')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(94, 212, 232, 0.15)',
+                  border: '1px solid var(--cyan)',
+                  color: 'var(--cyan)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                + Asignación
+              </button>
+              <button
+                type="button"
+                onClick={() => onDropFragment('print')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(94, 224, 160, 0.15)',
+                  border: '1px solid var(--green)',
+                  color: 'var(--green)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                + Print
+              </button>
+            </div>
           </div>
         )}
       </div>

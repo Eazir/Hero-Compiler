@@ -80,5 +80,50 @@ describe('FE-2: Interfaz del Editor de Bloques', () => {
 
     expect(screen.getByText(/12 \/ 12 Fragmentos/i)).toBeInTheDocument();
   });
+
+  test('los números son directamente editables y actualizan el código fuente', () => {
+    render(
+      <BrowserRouter>
+        <EditorScreen />
+      </BrowserRouter>
+    );
+
+    // Encontrar inputs numéricos
+    const numInputs = screen.getAllByLabelText(/editar valor numérico/i);
+    expect(numInputs.length).toBeGreaterThan(0);
+
+    // Cambiar el valor del primer número (era 5) por 99
+    fireEvent.change(numInputs[0], { target: { value: '99' } });
+
+    // La vista previa debe reflejar el cambio 'a = 99'
+    expect(screen.getByText(/a = 99/i)).toBeInTheDocument();
+  });
+
+  test('permite agregar múltiples bloques sucesivamente', () => {
+    render(
+      <BrowserRouter>
+        <EditorScreen />
+      </BrowserRouter>
+    );
+
+    // Limpiar para comenzar desde 0
+    const clearBtn = screen.getByRole('button', { name: /limpiar/i });
+    fireEvent.click(clearBtn);
+
+    // Agregar primera asignación
+    const addAssignBtn = screen.getByRole('button', { name: /\+ asignación/i });
+    fireEvent.click(addAssignBtn);
+    expect(screen.getByText(/2 \/ 12 Fragmentos/i)).toBeInTheDocument();
+
+    // Agregar segunda asignación
+    const addAssignBtn2 = screen.getByRole('button', { name: /\+ asignación/i });
+    fireEvent.click(addAssignBtn2);
+    expect(screen.getByText(/4 \/ 12 Fragmentos/i)).toBeInTheDocument();
+
+    // Agregar un print
+    const addPrintBtn = screen.getByRole('button', { name: /\+ print/i });
+    fireEvent.click(addPrintBtn);
+    expect(screen.getByText(/6 \/ 12 Fragmentos/i)).toBeInTheDocument();
+  });
 });
 
