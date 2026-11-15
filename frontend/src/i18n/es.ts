@@ -12,6 +12,8 @@ export const es = {
       compile: 'Compilar',
       compiling: 'Compilando...',
       reset: 'Reiniciar',
+      clear: 'Limpiar',
+      undo: 'Deshacer',
       loadExample: 'Cargar Ejemplo',
       continue: 'Continuar',
       skip: 'Saltar animación',
@@ -39,6 +41,7 @@ export const es = {
   editor: {
     limits: 'Límites: máx 8 líneas y 12 fragmentos',
     fragmentLimitReached: 'Has alcanzado el límite máximo de 12 fragmentos.',
+    lineLimitReached: 'Has alcanzado el límite máximo de 8 líneas.',
   },
 } as const;
 

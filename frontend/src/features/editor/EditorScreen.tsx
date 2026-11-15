@@ -1,20 +1,57 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProgramStore } from '../../state/programStore';
-import { useCompileStore } from '../../state/compileStore';
+import { FragmentType } from '../../domain/blocks';
 import { toSource } from '../../domain/serialize';
-import { Panel } from '../../ui/Panel';
-import { Button } from '../../ui/Button';
-import { Block } from '../../ui/Block';
-import { Chip } from '../../ui/Chip';
+import { BlockPath } from '../../domain/sourceMap';
 import { es } from '../../i18n/es';
+import { useCompileStore } from '../../state/compileStore';
+import { useProgramStore } from '../../state/programStore';
+import { Button } from '../../ui/Button';
+import { BlockCanvas } from './BlockCanvas';
+import { CodePreview } from './CodePreview';
+import { FragmentCounter } from './FragmentCounter';
+import { Palette } from './Palette';
 
 export const EditorScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { program, fragmentCount, loadDefaultExample, reset } = useProgramStore();
+  const {
+    program,
+    fragmentCount,
+    lineCount,
+    activeSlot,
+    setActiveSlot,
+    insertFragment,
+    removeStatement,
+    undo,
+    canUndo,
+    loadDefaultExample,
+    reset,
+  } = useProgramStore();
+
   const { status, errorMessage, compileSource } = useCompileStore();
+  const [warningMessage, setWarningMessage] = useState<string | null>(null);
 
   const { text } = toSource(program);
+
+  const handleSelectFragment = (type: FragmentType) => {
+    const res = insertFragment(type);
+    if (!res.ok) {
+      if (res.reason === 'MAX_FRAGMENTS') {
+        setWarningMessage('El fragmento 13 fue rechazado: el límite máximo es de 12 fragmentos.');
+      } else if (res.reason === 'MAX_LINES') {
+        setWarningMessage('No se pueden agregar más de 8 líneas al programa.');
+      }
+    } else {
+      setWarningMessage(null);
+    }
+  };
+
+  const handleDropFragment = (type: FragmentType, slot?: BlockPath) => {
+    if (slot) {
+      setActiveSlot(slot);
+    }
+    handleSelectFragment(type);
+  };
 
   const handleCompile = async () => {
     const res = await compileSource(text, true);
@@ -45,79 +82,101 @@ export const EditorScreen: React.FC = () => {
           {es.app.nav.editor}
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-          Construye expresiones y sentencias con bloques o prueba ejemplos de referencia.
+          Construye programas con fragmentos visuales arrastrando o usando el teclado.
         </p>
       </header>
 
-      {/* Barra de estado y fragmentos */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <Chip
-            label={`${fragmentCount} / 12 Fragmentos`}
-            variant={fragmentCount >= 12 ? 'red' : 'violet'}
-          />
-          <Chip label="Máx 8 líneas" variant="default" />
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+      {/* Barra de control y conteo de fragmentos */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        <FragmentCounter fragments={fragmentCount} lines={lineCount} />
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={undo}
+            disabled={!canUndo()}
+            title="Deshacer último cambio"
+          >
+            {es.app.actions.undo}
+          </Button>
           <Button variant="secondary" size="sm" onClick={loadDefaultExample}>
             {es.app.actions.loadExample}
           </Button>
           <Button variant="ghost" size="sm" onClick={reset}>
-            {es.app.actions.reset}
+            {es.app.actions.clear}
           </Button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-        {/* Paleta de Fragmentos */}
-        <Panel title="Paleta de Fragmentos (MiniArit)">
-          <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-            Haz clic o pulsa Enter sobre cualquier fragmento para agregarlo al programa:
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
-            <Block type="variable" label="x (Variable)" />
-            <Block type="number" label="42 (Número)" />
-            <Block type="operation" label="+ (Suma)" />
-            <Block type="operation" label="- (Resta)" />
-            <Block type="operation" label="* (Multiplicación)" />
-            <Block type="assign" label="a = expr" />
-            <Block type="print" label="print(expr)" />
-          </div>
-        </Panel>
-
-        {/* Vista previa del código fuente generado */}
-        <Panel
-          title="Vista Previa de Código (MiniArit)"
-          badge={<Chip label={status === 'loading' ? 'Compilando...' : 'Listo'} variant="amber" />}
+      {/* Alerta de rechazo de límite (criterio: fragmento 13 rechazado con motivo visible) */}
+      {warningMessage && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            backgroundColor: 'rgba(255, 111, 125, 0.15)',
+            border: '1px solid var(--red)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--red)',
+            fontSize: '0.9rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
         >
-          <pre
-            className="font-mono"
+          <span>{warningMessage}</span>
+          <button
+            type="button"
+            onClick={() => setWarningMessage(null)}
             style={{
-              padding: '16px',
-              backgroundColor: 'var(--panel-2)',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text)',
-              minHeight: '140px',
-              fontSize: '0.95rem',
-              lineHeight: '1.6',
+              background: 'none',
+              border: 'none',
+              color: 'var(--red)',
+              cursor: 'pointer',
+              fontWeight: 700,
             }}
           >
-            {text || '// Programa vacío. Agrega bloques o carga un ejemplo.'}
-          </pre>
+            ×
+          </button>
+        </div>
+      )}
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
-            <Button variant="primary" onClick={handleCompile} disabled={status === 'loading' || !text.trim()}>
-              {status === 'loading' ? es.app.actions.compiling : es.app.actions.compile}
-            </Button>
-            <Button variant="secondary" onClick={() => handleQuickLoad('a = @')}>
-              Probar E-101 (Léxico)
-            </Button>
-            <Button variant="secondary" onClick={() => handleQuickLoad('a = 3b')}>
-              Probar E-102 (Léxico)
-            </Button>
-          </div>
-        </Panel>
+      {/* Disposición del editor: Paleta y Lienzo a la izquierda, Vista previa a la derecha */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: '20px',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <Palette onSelectFragment={handleSelectFragment} disabled={fragmentCount >= 12} />
+          <BlockCanvas
+            program={program}
+            activeSlot={activeSlot}
+            onSelectSlot={setActiveSlot}
+            onRemoveStmt={removeStatement}
+            onDropFragment={handleDropFragment}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <CodePreview
+            sourceText={text}
+            isCompiling={status === 'loading'}
+            onCompile={handleCompile}
+            onQuickLoad={handleQuickLoad}
+          />
+        </div>
       </div>
 
       {errorMessage && (

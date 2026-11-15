@@ -1,5 +1,5 @@
 import { Expr, Program, Stmt } from './blocks';
-import { SourceMap } from './sourceMap';
+import { BlockPath, SourceMap } from './sourceMap';
 
 export interface SerializeResult {
   text: string;
@@ -11,38 +11,128 @@ function precedence(op: '+' | '-' | '*'): number {
   return 1;
 }
 
-function serializeExpr(expr: Expr, parentPrecedence = 0): string {
+interface SerializeState {
+  lineNum: number;
+  col: number;
+  sourceMap: SourceMap;
+}
+
+function serializeExprWithMap(
+  expr: Expr,
+  state: SerializeState,
+  path: BlockPath,
+  parentPrecedence: number
+): string {
+  const startCol = state.col;
+  const needsParens =
+    expr.kind === 'bin' && precedence(expr.op) < parentPrecedence;
+
+  if (needsParens) {
+    state.col += 1; // '('
+  }
+
+  let innerText = '';
+
   switch (expr.kind) {
-    case 'num':
-      return String(expr.value);
-    case 'var':
-      return expr.name;
+    case 'num': {
+      const s = String(expr.value);
+      state.col += s.length;
+      innerText = s;
+      break;
+    }
+    case 'var': {
+      const s = expr.name;
+      state.col += s.length;
+      innerText = s;
+      break;
+    }
     case 'neg': {
-      const inner = serializeExpr(expr.operand, 3);
-      return `-${inner}`;
+      state.col += 1; // '-'
+      const operandPath = [...path, 'operand'];
+      const operandText = serializeExprWithMap(
+        expr.operand,
+        state,
+        operandPath,
+        3
+      );
+      innerText = `-${operandText}`;
+      break;
     }
     case 'bin': {
       const currentPrec = precedence(expr.op);
-      const leftStr = serializeExpr(expr.left, currentPrec);
-      // Asocia por la izquierda: el operando derecho necesita paréntesis si tiene la misma precedencia con '-' o '*'
+      const leftPath = [...path, 'left'];
+      const leftStr = serializeExprWithMap(
+        expr.left,
+        state,
+        leftPath,
+        currentPrec
+      );
+
+      state.col += 3; // ' + ' (espacio, operador, espacio)
+
       const rightPrec = expr.op === '-' ? currentPrec + 1 : currentPrec;
-      const rightStr = serializeExpr(expr.right, rightPrec);
-      const str = `${leftStr} ${expr.op} ${rightStr}`;
-      if (currentPrec < parentPrecedence) {
-        return `(${str})`;
-      }
-      return str;
+      const rightPath = [...path, 'right'];
+      const rightStr = serializeExprWithMap(
+        expr.right,
+        state,
+        rightPath,
+        rightPrec
+      );
+
+      innerText = `${leftStr} ${expr.op} ${rightStr}`;
+      break;
     }
   }
+
+  if (needsParens) {
+    state.col += 1; // ')'
+    innerText = `(${innerText})`;
+  }
+
+  state.sourceMap.push({
+    span: {
+      line: state.lineNum,
+      col: startCol,
+      len: innerText.length,
+    },
+    path,
+  });
+
+  return innerText;
 }
 
-function serializeStmt(stmt: Stmt): string {
-  switch (stmt.kind) {
-    case 'assign':
-      return `${stmt.name} = ${serializeExpr(stmt.expr, 0)}`;
-    case 'print':
-      return `print(${serializeExpr(stmt.expr, 0)})`;
+function serializeStmtWithMap(
+  stmt: Stmt,
+  idx: number,
+  sourceMap: SourceMap
+): string {
+  const lineNum = idx + 1;
+  const state: SerializeState = { lineNum, col: 1, sourceMap };
+
+  let stmtText = '';
+  if (stmt.kind === 'assign') {
+    const prefix = `${stmt.name} = `;
+    state.col += prefix.length;
+    const exprText = serializeExprWithMap(stmt.expr, state, [idx, 'expr'], 0);
+    stmtText = `${prefix}${exprText}`;
+  } else if (stmt.kind === 'print') {
+    const prefix = 'print(';
+    state.col += prefix.length;
+    const exprText = serializeExprWithMap(stmt.expr, state, [idx, 'expr'], 0);
+    state.col += 1; // ')'
+    stmtText = `${prefix}${exprText})`;
   }
+
+  sourceMap.push({
+    span: {
+      line: lineNum,
+      col: 1,
+      len: stmtText.length,
+    },
+    path: [idx],
+  });
+
+  return stmtText;
 }
 
 export function toSource(program: Program): SerializeResult {
@@ -50,12 +140,7 @@ export function toSource(program: Program): SerializeResult {
   const sourceMap: SourceMap = [];
 
   program.forEach((stmt, idx) => {
-    const lineText = serializeStmt(stmt);
-    const lineNum = idx + 1;
-    sourceMap.push({
-      span: { line: lineNum, col: 1, len: lineText.length },
-      blockPath: `stmt[${idx}]`,
-    });
+    const lineText = serializeStmtWithMap(stmt, idx, sourceMap);
     lines.push(lineText);
   });
 
@@ -64,4 +149,3 @@ export function toSource(program: Program): SerializeResult {
     sourceMap,
   };
 }
-
