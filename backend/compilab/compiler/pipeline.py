@@ -13,6 +13,7 @@ import time
 from compilab.compiler.errors import CompileError
 from compilab.compiler.lexer import Token, tokenize
 from compilab.compiler.parser import ProgramNode, parse
+from compilab.compiler.semantic import SemanticInfo, analyze
 from compilab.compiler.tracer import Tracer
 from compilab.contract.models import (
     EXPECTED_PHASE_ORDER,
@@ -108,6 +109,42 @@ def compile_source(source: str, optimize: bool = True) -> CompileResponse:
             status="error",
             summary=f"Fallo sintáctico: {err.message}",
             steps=syn_tracer.get_steps(),
+            output=None,
+        )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return CompileResponse(
+            version=1,
+            ok=False,
+            phases=phases,
+            executable=None,
+            run=None,
+            error=err.to_error_info(),
+            meta=Meta(sourceLength=len(source), lineCount=line_count, elapsedMs=elapsed_ms),
+        )
+
+    # 3. Fase semántica
+    sem_tracer = Tracer()
+    semantic_info: SemanticInfo
+    try:
+        semantic_info = analyze(ast, sem_tracer)
+        phases[2] = PhaseResult(
+            id="semantic",
+            name="Análisis semántico",
+            status="ok",
+            summary=(
+                f"{len(semantic_info.symbols)} variable(s) declarada(s), "
+                f"{len(semantic_info.warnings)} advertencia(s)"
+            ),
+            steps=sem_tracer.get_steps(),
+            output=semantic_info.to_dict(),
+        )
+    except CompileError as err:
+        phases[2] = PhaseResult(
+            id="semantic",
+            name="Análisis semántico",
+            status="error",
+            summary=f"Fallo semántico: {err.message}",
+            steps=sem_tracer.get_steps(),
             output=None,
         )
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
