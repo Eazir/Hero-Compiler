@@ -628,208 +628,242 @@ const SpaceLexerGame: React.FC<{
 };
 
 // ============================================================================
-// 2. FASE SINTÁCTICA: 🕸️ AST CONSTELLATION (Conectar Puntos en Mapa Estelar)
+// 2. FASE SINTÁCTICA: ⚡ CIRCUIT PRECEDENCE HACKER (Canalizador de Compuertas AST)
 // ============================================================================
-interface StarPoint {
+interface CircuitGate {
   id: string;
-  label: string;
-  role: 'parent' | 'child';
-  x: number;
-  y: number;
-}
-
-interface ConstellationEdge {
-  id: string;
-  parentId: string;
-  childId: string;
-  parentLabel: string;
-  childLabel: string;
+  name: string;
+  kind: 'factor' | 'term' | 'expr' | 'stmt' | 'decoy';
+  priority: number; // Menor número = mayor prioridad de conexión en AST
+  conduitLabel: string;
   explain: string;
 }
 
-const AstConstellationGame: React.FC<{
+const CircuitPrecedenceHackerGame: React.FC<{
   phase: PhaseResult;
   onWin: () => void;
   onMistake: (f: GameMistakeFeedback) => void;
   onStepProgress: (idx: number) => void;
 }> = ({ phase, onWin, onMistake, onStepProgress }) => {
-  const { points, edges } = useMemo(() => {
-    const stmts: any[] = phase.output?.ast?.statements || [];
-    const pts: StarPoint[] = [];
-    const edgs: ConstellationEdge[] = [];
+  const sectors = useMemo(() => {
+    const rawStmts: any[] =
+      phase.output?.ast?.children || phase.output?.ast?.statements || [];
+    const stmts =
+      rawStmts.length > 0
+        ? rawStmts
+        : [
+            {
+              id: 'fallback',
+              kind: 'assign',
+              name: 'c',
+              expr: {
+                id: 'fe',
+                kind: 'binop',
+                op: '+',
+                left: { kind: 'var', name: 'a' },
+                right: {
+                  kind: 'binop',
+                  op: '*',
+                  left: { kind: 'var', name: 'b' },
+                  right: { kind: 'num', value: 2 },
+                },
+              },
+            },
+          ];
 
-    stmts.forEach((stmt, idx) => {
-      const baseX = stmts.length === 1 ? 50 : 16 + (idx * 68) / Math.max(1, stmts.length - 1);
-      const stmtId = `stmt-${idx}`;
-      const stmtLabel = stmt.kind === 'Assign' ? `${stmt.name} =` : `print()`;
+    return stmts.map((stmt, sIdx) => {
+      const isAssign = stmt.kind?.toLowerCase() === 'assign';
+      const stmtLabel = isAssign ? `${stmt.name} =` : 'print()';
+      const expr = stmt.expr;
+      const exprKind = expr?.kind?.toLowerCase();
 
-      pts.push({
-        id: stmtId,
-        label: stmtLabel,
-        role: 'parent',
-        x: baseX,
-        y: 18,
+      const gates: CircuitGate[] = [];
+
+      if (exprKind === 'binop') {
+        const rightIsBinOp = expr.right?.kind?.toLowerCase() === 'binop';
+        const leftIsBinOp = expr.left?.kind?.toLowerCase() === 'binop';
+        const hasMul =
+          expr.op === '*' ||
+          (rightIsBinOp && expr.right?.op === '*') ||
+          (leftIsBinOp && expr.left?.op === '*');
+
+        const rightLabel = rightIsBinOp
+          ? `${expr.right.left?.name ?? expr.right.left?.value} ${expr.right.op} ${expr.right.right?.name ?? expr.right.right?.value}`
+          : `${expr.right?.name ?? expr.right?.value ?? 'der'}`;
+        const leftLabel = `${expr.left?.name ?? expr.left?.value ?? 'izq'}`;
+
+        if (hasMul && (expr.op === '+' || expr.op === '-')) {
+          // Expresión mixta como a + b * 2: el término * TIENE MAYOR PRIORIDAD
+          gates.push({
+            id: `gate-term-${sIdx}`,
+            name: `⚡ Compuerta Term(*)`,
+            kind: 'term',
+            priority: 1,
+            conduitLabel: `[${rightLabel}] (Multiplicación)`,
+            explain:
+              'En MiniArit los operadores multiplicativos (*) tienen máxima precedencia y deben canalizarse primero en el AST.',
+          });
+          gates.push({
+            id: `gate-expr-${sIdx}`,
+            name: `⚡ Compuerta Expr(${expr.op})`,
+            kind: 'expr',
+            priority: 2,
+            conduitLabel: `[${leftLabel} ${expr.op} Term] (Suma/Resta)`,
+            explain:
+              'La suma (+) tiene menor precedencia y solo puede conectarse una vez resuelto el término multiplicativo.',
+          });
+          gates.push({
+            id: `gate-decoy-${sIdx}`,
+            name: `💥 Compuerta Señuelo: Bypass Invertido (${leftLabel} + ${expr.right?.left?.name ?? 'b'})`,
+            kind: 'decoy',
+            priority: 99,
+            conduitLabel: 'Cortocircuito de Precedencia',
+            explain:
+              'Intentaste evaluar la suma antes de la multiplicación, violando la jerarquía de la gramática EBNF.',
+          });
+        } else {
+          gates.push({
+            id: `gate-binop-${sIdx}`,
+            name: `⚡ Compuerta Op(${expr.op})`,
+            kind: 'term',
+            priority: 1,
+            conduitLabel: `[${leftLabel} ${expr.op} ${rightLabel}]`,
+            explain: `Derivación de la operación binaria '${expr.op}'.`,
+          });
+        }
+      } else {
+        const isNeg = exprKind === 'neg';
+        const valText = isNeg
+          ? `-${expr.operand?.name ?? expr.operand?.value}`
+          : `${expr?.name ?? expr?.value ?? '0'}`;
+        gates.push({
+          id: `gate-factor-${sIdx}`,
+          name: `⚡ Compuerta Valor`,
+          kind: 'factor',
+          priority: 1,
+          conduitLabel: `[${valText}] (Factor directo)`,
+          explain: 'Conexión directa del valor terminal hacia la sentencia.',
+        });
+      }
+
+      // Compuerta final de sentencia
+      gates.push({
+        id: `gate-stmt-${sIdx}`,
+        name: `🔌 Compuerta Raíz Stmt`,
+        kind: 'stmt',
+        priority: 10,
+        conduitLabel: `[${stmtLabel} Expr]`,
+        explain: 'Cierre del nodo de sentencia en la raíz del árbol AST.',
       });
 
-      const expr = stmt.expr;
-      if (expr?.kind === 'BinOp') {
-        const opId = `op-${idx}`;
-        const opLabel = `Op(${expr.op})`;
-        pts.push({
-          id: opId,
-          label: opLabel,
-          role: 'parent',
-          x: baseX,
-          y: 48,
-        });
-
-        const childId = `leaf-${idx}`;
-        const rightText =
-          expr.right?.kind === 'BinOp'
-            ? `${expr.right.left?.name ?? expr.right.left?.value}${expr.right.op}${expr.right.right?.name ?? expr.right.right?.value}`
-            : `${expr.right?.name ?? expr.right?.value ?? 'der'}`;
-        const leftText = `${expr.left?.name ?? expr.left?.value ?? 'izq'}`;
-        const childLabel = `${leftText}, ${rightText}`;
-
-        pts.push({
-          id: childId,
-          label: childLabel,
-          role: 'child',
-          x: baseX,
-          y: 80,
-        });
-
-        // Primero conectar el operador con sus operandos (de abajo hacia arriba) y luego la sentencia con el operador
-        edgs.push({
-          id: `edge-op-${idx}`,
-          parentId: opId,
-          childId: childId,
-          parentLabel: opLabel,
-          childLabel: childLabel,
-          explain: `En la línea ${idx + 1}, primero debes conectar el nodo operador '${opLabel}' con sus operandos hijos '${childLabel}'.`,
-        });
-
-        edgs.push({
-          id: `edge-stmt-${idx}`,
-          parentId: stmtId,
-          childId: opId,
-          parentLabel: stmtLabel,
-          childLabel: opLabel,
-          explain: `Una vez agrupada la operación '${opLabel}', debes conectarla como hija del nodo de sentencia '${stmtLabel}'.`,
-        });
-      } else {
-        const valId = `val-${idx}`;
-        const valLabel =
-          expr?.kind === 'Neg'
-            ? `-${expr.operand?.name ?? expr.operand?.value ?? 'x'}`
-            : `${expr?.name ?? expr?.value ?? '0'}`;
-
-        pts.push({
-          id: valId,
-          label: valLabel,
-          role: 'child',
-          x: baseX,
-          y: 72,
-        });
-
-        edgs.push({
-          id: `edge-simple-${idx}`,
-          parentId: stmtId,
-          childId: valId,
-          parentLabel: stmtLabel,
-          childLabel: valLabel,
-          explain: `En la sentencia #${idx + 1}, debes conectar el nodo padre '${stmtLabel}' con su valor hijo '${valLabel}'.`,
-        });
-      }
+      return {
+        sectorIndex: sIdx,
+        title: `Sector #${sIdx + 1}: ${stmtLabel} (Línea ${sIdx + 1})`,
+        gates,
+      };
     });
-
-    return { points: pts, edges: edgs };
   }, [phase]);
 
-  const [completedEdgeIds, setCompletedEdgeIds] = useState<string[]>([]);
-  const [selectedFirstPoint, setSelectedFirstPoint] = useState<StarPoint | null>(null);
-  const [focusedPtIdx, setFocusedPtIdx] = useState(0);
+  const [activeSectorIdx, setActiveSectorIdx] = useState(0);
+  const [connectedGateIds, setConnectedGateIds] = useState<string[]>([]);
+  const [cursorIdx, setCursorIdx] = useState(0);
+  const [powerSurgeAnim, setPowerSurgeAnim] = useState<string | null>(null);
 
-  const nextRequiredEdge = edges[completedEdgeIds.length];
+  const currentSector = sectors[activeSectorIdx] || sectors[0];
+  const activeGates = currentSector?.gates || [];
 
-  const handleClickStarPoint = (pt: StarPoint) => {
-    if (!nextRequiredEdge) return;
+  // Próxima compuerta esperada según menor prioridad pendiente
+  const nextExpectedGate = useMemo(() => {
+    const pending = activeGates
+      .filter((g) => g.kind !== 'decoy' && !connectedGateIds.includes(g.id))
+      .sort((a, b) => a.priority - b.priority);
+    return pending[0] || null;
+  }, [activeGates, connectedGateIds]);
 
-    // Primer clic: seleccionar punto de origen (Padre)
-    if (!selectedFirstPoint) {
-      setSelectedFirstPoint(pt);
+  const handleActivateGate = (gate: CircuitGate) => {
+    if (!nextExpectedGate) return;
+
+    if (gate.kind === 'decoy') {
+      onMistake({
+        phaseName: 'Análisis Sintáctico (Circuit Precedence Hacker)',
+        stepTitle: `Cortocircuito en ${currentSector.title}`,
+        userAnswer: `Activaste la compuerta de bypass erróneo [${gate.name}]`,
+        whatWentWrong:
+          '¡Sobrecarga de circuito por violación de precedencia! Intentaste forzar la suma antes de la multiplicación.',
+        whatShouldBeDone: `Conecta primero la compuerta de mayor precedencia [${nextExpectedGate.name}] (${nextExpectedGate.conduitLabel}).`,
+      });
       return;
     }
 
-    // Si hace clic en el mismo punto, deselecciona
-    if (selectedFirstPoint.id === pt.id) {
-      setSelectedFirstPoint(null);
-      return;
-    }
+    if (gate.id === nextExpectedGate.id) {
+      setPowerSurgeAnim(gate.id);
+      setTimeout(() => setPowerSurgeAnim(null), 300);
 
-    // Segundo clic: verificar si la conexión (selectedFirstPoint -> pt) es el enlace esperado
-    const isExactMatch =
-      selectedFirstPoint.id === nextRequiredEdge.parentId &&
-      pt.id === nextRequiredEdge.childId;
+      const nextConnected = [...connectedGateIds, gate.id];
+      setConnectedGateIds(nextConnected);
 
-    if (isExactMatch) {
-      const nextCompleted = [...completedEdgeIds, nextRequiredEdge.id];
-      setCompletedEdgeIds(nextCompleted);
-      setSelectedFirstPoint(null);
-      onStepProgress(nextCompleted.length);
-      if (nextCompleted.length >= edges.length) {
-        onWin();
+      const remainingInSector = activeGates.filter(
+        (g) => g.kind !== 'decoy' && !nextConnected.includes(g.id)
+      );
+
+      if (remainingInSector.length === 0) {
+        // Sector completado!
+        const nextSector = activeSectorIdx + 1;
+        onStepProgress(nextSector);
+        if (nextSector >= sectors.length) {
+          onWin();
+        } else {
+          setActiveSectorIdx(nextSector);
+          setCursorIdx(0);
+        }
       }
     } else {
-      const fromLabel = selectedFirstPoint.label;
-      const toLabel = pt.label;
-      setSelectedFirstPoint(null);
       onMistake({
-        phaseName: 'Análisis Sintáctico (AST Constellation)',
-        stepTitle: `Enlace Estelar #${completedEdgeIds.length + 1} de ${edges.length}`,
-        userAnswer: `Intentaste trazar un cable desde [${fromLabel}] hacia [${toLabel}]`,
-        whatWentWrong:
-          selectedFirstPoint.role === 'child'
-            ? `Seleccionaste una hoja ('${fromLabel}') como nodo padre. En el árbol sintáctico (AST), los literales y variables son nodos hoja y no pueden tener hijos.`
-            : `Conectaste '${fromLabel}' con '${toLabel}', rompiendo el orden jerárquico o de precedencia del árbol sintáctico.`,
-        whatShouldBeDone: `${nextRequiredEdge.explain} Haz clic primero en la estrella [${nextRequiredEdge.parentLabel}] y luego en la estrella [${nextRequiredEdge.childLabel}].`,
+        phaseName: 'Análisis Sintáctico (Circuit Precedence Hacker)',
+        stepTitle: `Error de Canalización en ${currentSector.title}`,
+        userAnswer: `Activaste [${gate.name}] antes que [${nextExpectedGate.name}]`,
+        whatWentWrong: `El flujo de corriente lógica se bloqueó. No puedes derivar la compuerta [${gate.name}] sin antes haber conectado [${nextExpectedGate.name}].`,
+        whatShouldBeDone: `${nextExpectedGate.explain} Selecciona con las flechas [${nextExpectedGate.name}] y pulsa ESPACIO para canalizarla.`,
       });
     }
   };
 
-  // Referencia para evitar cierres obsoletos en los atajos de teclado
-  const latestAstRef = useRef({
-    focusedPtIdx,
-    points,
-    handleClickStarPoint,
+  const latestHackerRef = useRef({
+    activeGates,
+    cursorIdx,
+    handleActivateGate,
   });
   useEffect(() => {
-    latestAstRef.current = {
-      focusedPtIdx,
-      points,
-      handleClickStarPoint,
+    latestHackerRef.current = {
+      activeGates,
+      cursorIdx,
+      handleActivateGate,
     };
   });
 
-  // Escuchador de teclado: Flechas ◀ / ▶ para seleccionar y ESPACIO / ENTER para conectar
+  // Escuchador de teclado: Flechas para mover el cursor hacker y ESPACIO/ENTER para activar la compuerta
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      const { points: pts, focusedPtIdx: fIdx, handleClickStarPoint: hClick } = latestAstRef.current;
-      if (pts.length === 0) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { activeGates: ag, cursorIdx: cIdx, handleActivateGate: ha } = latestHackerRef.current;
+      if (ag.length === 0) return;
 
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        setFocusedPtIdx((i) => (i - 1 + pts.length) % pts.length);
-      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'Tab') {
+        setCursorIdx((i) => (i - 1 + ag.length) % ag.length);
+      } else if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowDown' ||
+        e.key === 'd' ||
+        e.key === 'D' ||
+        e.key === 'Tab'
+      ) {
         e.preventDefault();
-        setFocusedPtIdx((i) => (i + 1) % pts.length);
+        setCursorIdx((i) => (i + 1) % ag.length);
       } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
         e.preventDefault();
-        if (pts[fIdx]) {
-          hClick(pts[fIdx]);
+        if (ag[cIdx]) {
+          ha(ag[cIdx]);
         }
       }
     };
@@ -838,7 +872,7 @@ const AstConstellationGame: React.FC<{
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!nextRequiredEdge) return null;
+  if (!currentSector) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -858,14 +892,15 @@ const AstConstellationGame: React.FC<{
         }}
       >
         <span style={{ color: 'var(--green)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES TECLADO:
+          🎮 CONTROLES HACKER:
         </span>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span>
-            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Seleccionar Estrella
+            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> <kbd style={kbdStyle}>▲</kbd>{' '}
+            <kbd style={kbdStyle}>▼</kbd> Mover Cursor Hacker
           </span>
           <span>
-            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Conectar Nodo AST
+            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Canalizar Compuerta AST
           </span>
         </div>
       </div>
@@ -874,168 +909,145 @@ const AstConstellationGame: React.FC<{
         style={{
           padding: '16px',
           borderRadius: 'var(--radius-md)',
-          background: 'radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.16), #060b17 85%)',
+          background:
+            'radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.22), rgba(5, 10, 22, 0.98) 85%)',
           border: '1px solid var(--green)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
-            🕸️ CONSTELACIÓN AST (CONECTAR PUNTOS) — Cables {completedEdgeIds.length} / {edges.length}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.86rem',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--green)',
+              fontWeight: 800,
+            }}
+          >
+            ⚡ CIRCUIT PRECEDENCE HACKER — {currentSector.title} (Sector {activeSectorIdx + 1} de{' '}
+            {sectors.length})
           </span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
-            {selectedFirstPoint
-              ? `⚡ Origen fijado en [${selectedFirstPoint.label}] → Ahora conecta con el nodo hijo destino`
-              : `Objetivo actual: Conecta [${nextRequiredEdge.parentLabel}] ➔ [${nextRequiredEdge.childLabel}]`}
+          <span style={{ fontSize: '0.78rem', color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
+            {nextExpectedGate
+              ? `⚡ Próxima compuerta a derivar: ${nextExpectedGate.name} (${nextExpectedGate.conduitLabel})`
+              : '⚡ ¡Sector energizado al 100%!'}
           </span>
         </div>
 
-        {/* Lienzo SVG Interactivo donde cada estrella es un punto clicable */}
-        <svg
-          viewBox="0 0 100 100"
+        {/* Matriz interactiva de compuertas lógicas y tuberías de precedencia */}
+        <div
           style={{
-            width: '100%',
-            height: '260px',
-            backgroundColor: 'rgba(5, 10, 22, 0.85)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--line-strong)',
-            userSelect: 'none',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
+            gap: '12px',
           }}
         >
-          {/* Cables ya conectados */}
-          {edges.map((edg) => {
-            const isDone = completedEdgeIds.includes(edg.id);
-            const isNext = edg.id === nextRequiredEdge.id;
-            const p1 = points.find((p) => p.id === edg.parentId);
-            const p2 = points.find((p) => p.id === edg.childId);
-            if (!p1 || !p2) return null;
+          {activeGates.map((gate, gIdx) => {
+            const isConnected = connectedGateIds.includes(gate.id);
+            const isFocused = cursorIdx === gIdx;
+            const isSurging = powerSurgeAnim === gate.id;
+            const isDecoy = gate.kind === 'decoy';
 
-            return (
-              <g key={edg.id}>
-                {(isDone || isNext) && (
-                  <line
-                    x1={p1.x}
-                    y1={p1.y}
-                    x2={p2.x}
-                    y2={p2.y}
-                    stroke={isDone ? '#10B981' : 'rgba(56, 189, 248, 0.35)'}
-                    strokeWidth={isDone ? '1.6' : '0.9'}
-                    strokeDasharray={isDone ? undefined : '2 2'}
-                  />
-                )}
-              </g>
-            );
-          })}
-
-          {/* Puntos Estelares Interactivos */}
-          {points.map((pt, pIdx) => {
-            const isSelected = selectedFirstPoint?.id === pt.id;
-            const isFocused = focusedPtIdx === pIdx;
-            const isTargetParent = nextRequiredEdge.parentId === pt.id;
-            const isTargetChild = nextRequiredEdge.childId === pt.id;
-
-            return (
-              <g
-                key={pt.id}
-                onClick={() => {
-                  setFocusedPtIdx(pIdx);
-                  handleClickStarPoint(pt);
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                {/* Halo de foco por teclado */}
-                {isFocused && (
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r="9.5"
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="0.8"
-                    strokeDasharray="1.5 1"
-                  />
-                )}
-                {isSelected && (
-                  <circle
-                    cx={pt.x}
-                    cy={pt.y}
-                    r="8"
-                    fill="none"
-                    stroke="#38BDF8"
-                    strokeWidth="0.9"
-                    strokeDasharray="2 1"
-                  />
-                )}
-                <circle
-                  cx={pt.x}
-                  cy={pt.y}
-                  r="5.2"
-                  fill={
-                    isSelected
-                      ? '#38BDF8'
-                      : isTargetParent || isTargetChild
-                      ? '#10B981'
-                      : '#1E293B'
-                  }
-                  stroke={isFocused ? '#10B981' : '#FFFFFF'}
-                  strokeWidth="1.2"
-                />
-                <text
-                  x={pt.x}
-                  y={pt.y - 7.5}
-                  fill="#FFFFFF"
-                  fontSize="3.8"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                  fontFamily="monospace"
-                >
-                  {pt.label}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-
-        {/* Botones de Nodos Estelares accesibles por teclado y ratón */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>
-            Nodos en el mapa estelar (pulsa ◀ / ▶ o haz clic):
-          </span>
-          {points.map((pt, pIdx) => {
-            const isSelected = selectedFirstPoint?.id === pt.id;
-            const isFocused = focusedPtIdx === pIdx;
             return (
               <button
-                key={pt.id}
+                key={gate.id}
                 type="button"
+                disabled={isConnected}
                 onClick={() => {
-                  setFocusedPtIdx(pIdx);
-                  handleClickStarPoint(pt);
+                  setCursorIdx(gIdx);
+                  handleActivateGate(gate);
                 }}
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '999px',
-                  backgroundColor: isSelected
-                    ? 'rgba(56, 189, 248, 0.28)'
+                  padding: '14px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: isSurging
+                    ? 'rgba(16, 185, 129, 0.45)'
+                    : isConnected
+                    ? 'rgba(16, 185, 129, 0.18)'
+                    : isDecoy
+                    ? 'rgba(239, 68, 68, 0.15)'
                     : isFocused
-                    ? 'rgba(16, 185, 129, 0.25)'
-                    : 'rgba(15, 23, 42, 0.85)',
-                  border: isSelected
+                    ? 'rgba(37, 99, 235, 0.28)'
+                    : 'rgba(15, 23, 42, 0.88)',
+                  border: isSurging
+                    ? '2px solid #10B981'
+                    : isConnected
+                    ? '1px solid var(--green)'
+                    : isFocused
                     ? '2px solid var(--blue-bright)'
-                    : isFocused
-                    ? '2px solid var(--green)'
+                    : isDecoy
+                    ? '1px dashed rgba(239, 68, 68, 0.5)'
                     : '1px solid var(--line-strong)',
-                  color: '#FFFFFF',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: isFocused ? '0 0 10px rgba(16, 185, 129, 0.4)' : 'none',
+                  color: isConnected ? 'var(--green)' : '#FFFFFF',
+                  cursor: isConnected ? 'default' : 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  boxShadow: isFocused
+                    ? '0 0 16px rgba(56, 189, 248, 0.5)'
+                    : isConnected
+                    ? '0 0 12px rgba(16, 185, 129, 0.3)'
+                    : 'none',
+                  transition: 'all 0.15s ease',
+                  opacity: isConnected ? 0.75 : 1,
                 }}
               >
-                ⭐ {pt.label} {isFocused ? '◀' : ''}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong
+                    style={{
+                      fontSize: '0.86rem',
+                      fontFamily: 'var(--font-mono)',
+                      color: isConnected
+                        ? 'var(--green)'
+                        : isDecoy
+                        ? '#EF4444'
+                        : isFocused
+                        ? 'var(--blue-bright)'
+                        : '#FFFFFF',
+                    }}
+                  >
+                    {isConnected ? '✅ ENERGIZADA' : gate.name}
+                  </strong>
+                  {isFocused && !isConnected && (
+                    <span
+                      style={{
+                        fontSize: '0.68rem',
+                        color: 'var(--blue-bright)',
+                        fontFamily: 'var(--font-mono)',
+                        backgroundColor: 'rgba(37, 99, 235, 0.3)',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      [ESPACIO]
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '0.78rem',
+                    fontFamily: 'var(--font-mono)',
+                    color: isConnected ? 'var(--green)' : 'var(--text)',
+                  }}
+                >
+                  Conduit: {gate.conduitLabel}
+                </div>
+
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', lineHeight: 1.2 }}>
+                  {gate.explain}
+                </div>
               </button>
             );
           })}
@@ -1046,7 +1058,7 @@ const AstConstellationGame: React.FC<{
 };
 
 // ============================================================================
-// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D con Teclado Flechas y D-Pad)
+// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto Multicamino 6x6 con Trampas y Teclado)
 // ============================================================================
 const SymbolMazeGame: React.FC<{
   phase: PhaseResult;
@@ -1066,81 +1078,109 @@ const SymbolMazeGame: React.FC<{
   const firstVar = symbols[0]?.name || 'a';
   const secondVar = symbols[1]?.name || firstVar;
 
-  const tryMove = (targetR: number, targetC: number) => {
-    if (targetR < 0 || targetR > 3 || targetC < 0 || targetC > 4) return;
+  // Paredes del laberinto 6x6 que crean bifurcaciones y caminos estratégicos
+  const walls = useMemo(
+    () =>
+      new Set([
+        '1,0', '1,3', '1,4', '1,5',
+        '2,4', '2,5',
+        '3,0', '3,1', '3,5',
+        '4,0', '4,1', '4,3',
+        '5,0', '5,1', '5,3',
+      ]),
+    []
+  );
 
-    // Paredes del laberinto 4x5
-    const walls = new Set(['0,2', '1,0', '2,1', '2,3', '3,2']);
+  const tryMove = (targetR: number, targetC: number) => {
+    if (targetR < 0 || targetR > 5 || targetC < 0 || targetC > 5) return;
+
     if (walls.has(`${targetR},${targetC}`)) {
       return;
     }
 
-    // Trampa 1 en (0, 3): Leer variable fantasma 'z_undef' no declarada
-    if (targetR === 0 && targetC === 3) {
+    // Trampa 1 en (0, 5): Atajo tentador con variable fantasma 'z_undef' no declarada (E-301)
+    if (targetR === 0 && targetC === 5) {
       onMistake({
-        phaseName: 'Análisis Semántico (Symbol Maze)',
-        stepTitle: 'Trampa de Memoria: Variable No Declarada (E-301)',
-        userAnswer: 'Guiaste el dron hacia la celda de lectura de una variable sin declarar (z_undef)',
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
+        stepTitle: 'Bifurcación #1: Atajo Trampa — Variable No Declarada (E-301)',
+        userAnswer: 'Tomaste el atajo superior directo hacia (0, 5) leyendo la variable fantasma "z_undef"',
         whatWentWrong:
-          'Intentaste leer en memoria una variable que no existe en la Tabla de Símbolos, lo cual dispara el error semántico E-301.',
-        whatShouldBeDone: `Evita las celdas de variables no declaradas (☠️) y recoge primero las llaves 🔑 Declarar '${firstVar}' y 🔑 Declarar '${secondVar}'.`,
+          'Intentaste leer en memoria una variable inexistente en la Tabla de Símbolos. En MiniArit, toda variable debe ser declarada previamente con una asignación (E-301).',
+        whatShouldBeDone: `No caigas en el atajo tentador. Regresa a la bifurcación (0, 2), baja hacia (1, 2) y recoge la llave 🔑 Declarar '${firstVar}'.`,
       });
       return;
     }
 
-    // Trampa 2 en (3, 1): Tipo incompatible / lectura antes de asignar
-    if (targetR === 3 && targetC === 1) {
+    // Trampa 2 en (2, 0): Uso de variable antes de su declaración por línea (E-301)
+    if (targetR === 2 && targetC === 0) {
       onMistake({
-        phaseName: 'Análisis Semántico (Symbol Maze)',
-        stepTitle: 'Trampa de Alcance por Línea (E-301)',
-        userAnswer: 'Intentaste usar una variable en una línea anterior a su asignación',
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
+        stepTitle: 'Bifurcación #2: Trampa de Alcance Temporal (E-301)',
+        userAnswer: `Intentaste usar "${secondVar}" en una línea previa a su declaración`,
         whatWentWrong:
-          'En MiniArit el alcance es secuencial por línea: una variable solo existe después de la línea donde se le asigna un valor.',
-        whatShouldBeDone: `Sigue el corredor principal con las flechas del teclado recogiendo las llaves de declaración antes de cruzar compuertas.`,
+          'El análisis semántico comprueba que cada identificador haya sido asignado en una línea estrictamente anterior a su lectura en expresiones.',
+        whatShouldBeDone: `Regresa a la bifurcación central (2, 2), ve hacia la derecha pasando por (2, 3) y registra primero la declaración de '${secondVar}' en (3, 4).`,
       });
       return;
     }
 
-    // Compuerta de lectura en (1, 3): requiere haber recogido ambas llaves
-    if (targetR === 1 && targetC === 3 && !collectedKeys.includes(secondVar)) {
+    // Trampa 3 en (5, 2): Desbordamiento o lectura fuera de ámbito (E-301 / E-401)
+    if (targetR === 5 && targetC === 2) {
       onMistake({
-        phaseName: 'Análisis Semántico (Symbol Maze)',
-        stepTitle: `Compuerta de Uso: Leer '${secondVar}'`,
-        userAnswer: `Intentaste cruzar la compuerta 'Usar ${secondVar}' sin haber recogido la llave 'Declarar ${secondVar}'`,
-        whatWentWrong: `El analizador semántico consultó '${secondVar}' en la Tabla de Símbolos pero aún no la habías registrado (E-301).`,
-        whatShouldBeDone: `Mueve el dron primero a la casilla 🔑 Declarar '${secondVar}' (fila 1, col 2) para registrarla en la Tabla de Símbolos y luego cruza esta compuerta.`,
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
+        stepTitle: 'Bifurcación #2 (Sur): Trampa de Memoria No Asignada',
+        userAnswer: 'Guiaste el dron al callejón sin salida del sur (5, 2)',
+        whatWentWrong:
+          'Esa celda intenta referenciar un registro de memoria sin inicializar, disparando un fallo de consistencia semántica.',
+        whatShouldBeDone: `Sube de vuelta a (2, 2) y toma la ruta este para registrar '${secondVar}' y cruzar la compuerta de validación en (4, 4).`,
       });
       return;
     }
 
-    // Meta en (3, 4): requiere haber cruzado la compuerta de validación
-    if (targetR === 3 && targetC === 4 && !unlockedGates.includes(secondVar)) {
+    // Compuerta de uso en (4, 4): requiere haber recogido ambas llaves
+    if (targetR === 4 && targetC === 4 && !collectedKeys.includes(secondVar)) {
       onMistake({
-        phaseName: 'Análisis Semántico (Symbol Maze)',
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
+        stepTitle: `Compuerta Semántica: Usar '${secondVar}' en Expresión`,
+        userAnswer: `Intentaste cruzar la compuerta de uso sin haber declarado '${secondVar}'`,
+        whatWentWrong: `El compilador intentó generar código de lectura para '${secondVar}', pero la variable no existe en la Tabla de Símbolos en este punto.`,
+        whatShouldBeDone: `Ve a la celda 🔑 Declarar '${secondVar}' en (3, 4) para registrarla en la tabla antes de abrir la compuerta 🚪.`,
+      });
+      return;
+    }
+
+    // Meta en (5, 5): requiere haber cruzado la compuerta de validación
+    if (targetR === 5 && targetC === 5 && !unlockedGates.includes(secondVar)) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
         stepTitle: 'Portal de Salida Semántica',
-        userAnswer: 'Intentaste salir del laberinto sin abrir la Compuerta de Lectura',
+        userAnswer: 'Intentaste salir sin haber validado el uso de variables en la compuerta',
         whatWentWrong:
-          'El analizador semántico debe verificar tanto las declaraciones como los usos de las variables antes de aprobar la fase.',
-        whatShouldBeDone: `Pasa por 🔑 Declarar '${firstVar}' → 🔑 Declarar '${secondVar}' → 🚪 Usar '${secondVar}' y finalmente entra al Portal 🏁.`,
+          'El análisis semántico debe verificar tanto la tabla de símbolos como las referencias antes de autorizar la generación de código intermedio.',
+        whatShouldBeDone: `Asegúrate de cruzar la compuerta 🚪 en (4, 4) tras recoger ambas llaves 🔑 y luego entra al Portal 🏁.`,
       });
       return;
     }
 
     setDronePos({ r: targetR, c: targetC });
 
-    if (targetR === 0 && targetC === 1 && !collectedKeys.includes(firstVar)) {
+    // Llave 1 en (1, 1)
+    if (targetR === 1 && targetC === 1 && !collectedKeys.includes(firstVar)) {
       setCollectedKeys((prev) => [...prev, firstVar]);
       onStepProgress(1);
     }
-    if (targetR === 1 && targetC === 2 && !collectedKeys.includes(secondVar)) {
+    // Llave 2 en (3, 4)
+    if (targetR === 3 && targetC === 4 && !collectedKeys.includes(secondVar)) {
       setCollectedKeys((prev) => [...prev, secondVar]);
       onStepProgress(2);
     }
-    if (targetR === 1 && targetC === 3 && !unlockedGates.includes(secondVar)) {
+    // Compuerta en (4, 4)
+    if (targetR === 4 && targetC === 4 && !unlockedGates.includes(secondVar)) {
       setUnlockedGates((prev) => [...prev, secondVar]);
       onStepProgress(3);
     }
-    if (targetR === 3 && targetC === 4) {
+    // Meta en (5, 5)
+    if (targetR === 5 && targetC === 5) {
       onWin();
     }
   };
@@ -1200,7 +1240,7 @@ const SymbolMazeGame: React.FC<{
         </span>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span>
-            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>W/A/S/D</kbd> Mover Dron 🤖 por el Laberinto
+            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>W/A/S/D</kbd> Mover Dron 🤖 por el Laberinto 6x6
           </span>
         </div>
       </div>
@@ -1218,10 +1258,10 @@ const SymbolMazeGame: React.FC<{
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-              🧭 LABERINTO DE MEMORIA (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
+              🧭 LABERINTO MULTICAMINO 6x6 (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
             </span>
             <p style={{ fontSize: '0.76rem', color: 'var(--muted)', margin: '2px 0 0 0' }}>
-              Haz clic en las casillas o usa el D-Pad para guiar al dron 🤖: recoge 🔑 Declaraciones antes de abrir 🚪 Compuertas.
+              Guía al dron 🤖 por las bifurcaciones. Evita los atajos trampa (☠️), recoge las declaraciones 🔑 y cruza la compuerta 🚪 hasta la meta 🏁.
             </p>
           </div>
 
@@ -1242,25 +1282,25 @@ const SymbolMazeGame: React.FC<{
           </div>
         </div>
 
-        {/* Cuadrícula 4x5 del Laberinto */}
+        {/* Cuadrícula 6x6 del Laberinto */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: '8px',
+            gridTemplateColumns: 'repeat(6, 1fr)',
+            gap: '6px',
           }}
         >
-          {[0, 1, 2, 3].map((r) =>
-            [0, 1, 2, 3, 4].map((c) => {
+          {[0, 1, 2, 3, 4, 5].map((r) =>
+            [0, 1, 2, 3, 4, 5].map((c) => {
               const isDrone = dronePos.r === r && dronePos.c === c;
-              const walls = new Set(['0,2', '1,0', '2,1', '2,3', '3,2']);
               const isWall = walls.has(`${r},${c}`);
-              const isTrap1 = r === 0 && c === 3;
-              const isTrap2 = r === 3 && c === 1;
-              const isKey1 = r === 0 && c === 1;
-              const isKey2 = r === 1 && c === 2;
-              const isGate = r === 1 && c === 3;
-              const isGoal = r === 3 && c === 4;
+              const isTrap1 = r === 0 && c === 5;
+              const isTrap2 = r === 2 && c === 0;
+              const isTrap3 = r === 5 && c === 2;
+              const isKey1 = r === 1 && c === 1;
+              const isKey2 = r === 3 && c === 4;
+              const isGate = r === 4 && c === 4;
+              const isGoal = r === 5 && c === 5;
 
               let cellLabel = 'Pasillo';
               let icon = '·';
@@ -1272,6 +1312,9 @@ const SymbolMazeGame: React.FC<{
                 icon = '☠️';
               } else if (isTrap2) {
                 cellLabel = 'Trampa: Uso previo';
+                icon = '☠️';
+              } else if (isTrap3) {
+                cellLabel = 'Trampa: Desborde';
                 icon = '☠️';
               } else if (isKey1) {
                 cellLabel = `Declarar ${firstVar}`;
@@ -1294,19 +1337,19 @@ const SymbolMazeGame: React.FC<{
                   disabled={isWall}
                   onClick={() => tryMove(r, c)}
                   style={{
-                    minHeight: '64px',
-                    padding: '6px',
+                    minHeight: '56px',
+                    padding: '4px',
                     borderRadius: 'var(--radius-sm)',
                     backgroundColor: isWall
                       ? 'rgba(5, 9, 18, 0.96)'
                       : isDrone
                       ? 'rgba(16, 185, 129, 0.28)'
-                      : isTrap1 || isTrap2
+                      : isTrap1 || isTrap2 || isTrap3
                       ? 'rgba(244, 63, 94, 0.14)'
                       : 'rgba(19, 36, 66, 0.75)',
                     border: isDrone
                       ? '2px solid var(--green)'
-                      : isTrap1 || isTrap2
+                      : isTrap1 || isTrap2 || isTrap3
                       ? '1px dashed var(--red)'
                       : '1px solid var(--line)',
                     color: '#FFFFFF',
@@ -1315,12 +1358,12 @@ const SymbolMazeGame: React.FC<{
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '3px',
+                    gap: '2px',
                     fontFamily: 'var(--font-mono)',
-                    fontSize: '0.73rem',
+                    fontSize: '0.68rem',
                   }}
                 >
-                  <span style={{ fontSize: '1.25rem' }}>{isDrone ? '🤖' : icon}</span>
+                  <span style={{ fontSize: '1.15rem' }}>{isDrone ? '🤖' : icon}</span>
                   <span style={{ textAlign: 'center', lineHeight: 1.1 }}>{cellLabel}</span>
                 </button>
               );
@@ -1333,7 +1376,7 @@ const SymbolMazeGame: React.FC<{
 };
 
 // ============================================================================
-// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Todas las Dianas en Pista)
+// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Permutación Determinista sin Duplicados)
 // ============================================================================
 const PostOrderSniperGame: React.FC<{
   phase: PhaseResult;
@@ -1349,7 +1392,8 @@ const PostOrderSniperGame: React.FC<{
   const [shotCount, setShotCount] = useState(0);
   const [focusedPlateIdx, setFocusedPlateIdx] = useState(0);
 
-  // Mezclamos determinísticamente el orden visual de las dianas en la galería para que el jugador deba apuntar en el orden postorden real
+  // Mezclamos determinísticamente usando Fisher-Yates con semilla pseudoaleatoria fija
+  // Esto GARANTIZA una biyección exacta 1-a-1: 0 dianas omitidas y 0 dianas duplicadas.
   const galleryTargets = useMemo(() => {
     const realTargets = instrs.map((ins) => ({
       id: `tac-${ins.index}`,
@@ -1364,8 +1408,16 @@ const PostOrderSniperGame: React.FC<{
       isDecoy: true,
     };
     const all = [...realTargets, decoy];
-    // Rotación determinista para que no estén en orden 0,1,2... lineal
-    return all.map((_, i) => all[(i * 3 + 1) % all.length]);
+    const shuffled = [...all];
+    let seed = 12345;
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      seed = (seed * 9301 + 49297) % 233280;
+      const j = Math.floor((seed / 233280) * (i + 1));
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
+    return shuffled;
   }, [instrs]);
 
   const expectedTarget = instrs[shotCount];
@@ -1438,7 +1490,7 @@ const PostOrderSniperGame: React.FC<{
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!expectedTarget) return null;
+  if (!expectedTarget && shotCount < instrs.length) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -2156,7 +2208,7 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
             />
           )}
           {phase.id === 'syntactic' && (
-            <AstConstellationGame
+            <CircuitPrecedenceHackerGame
               phase={phase}
               onWin={() => setPhaseCompleted(true)}
               onMistake={handleMistake}

@@ -68,7 +68,7 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
     );
 
     expect(screen.getByRole('heading', { name: /tabla de símbolos/i })).toBeInTheDocument();
-    expect(screen.getByText(/LABERINTO DE MEMORIA/i)).toBeInTheDocument();
+    expect(screen.getByText(/LABERINTO MULTICAMINO 6x6/i)).toBeInTheDocument();
   });
 
   test('en la fase de código intermedio se visualizan las instrucciones TAC y el juego Post-Order Sniper', () => {
@@ -185,7 +185,7 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
     expect(screen.getByText(/El rayo láser rebotó en el escudo magnético/i)).toBeInTheDocument();
   });
 
-  test('Symbol Maze responde a las flechas del teclado para mover el dron y recoger llaves', () => {
+  test('Symbol Maze 6x6 responde a las flechas del teclado, detecta atajo trampa E-301 y recoge llaves', () => {
     usePlayerStore.setState({ activePhase: 'semantic', stepIndex: 0 });
 
     render(
@@ -194,9 +194,71 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
       </BrowserRouter>
     );
 
-    // El dron empieza en (0, 0). Mover a la derecha con ArrowRight lo lleva a (0, 1) donde está la llave Declarar 'a'
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    // 1. Probar bifurcación #1: atajo tentador en fila 0 hacia (0, 5) con trampa z_undef (E-301)
+    // El dron empieza en (0, 0).
+    fireEvent.keyDown(window, { key: 'ArrowRight' }); // (0, 1)
+    fireEvent.keyDown(window, { key: 'ArrowRight' }); // (0, 2) - Bifurcación #1
+    fireEvent.keyDown(window, { key: 'ArrowRight' }); // (0, 3)
+    fireEvent.keyDown(window, { key: 'ArrowRight' }); // (0, 4)
+    fireEvent.keyDown(window, { key: 'ArrowRight' }); // (0, 5) - Trampa z_undef
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Variable No Declarada \(E-301\)/i)).toBeInTheDocument();
+
+    // Cerramos el modal de error
+    fireEvent.click(screen.getByRole('button', { name: /entendido, corregir paso/i }));
+
+    // 2. Ruta legítima hacia la llave 'a' en (1, 1):
+    // Desde (0, 4) regresamos hacia (0, 2), bajamos a (1, 2) y vamos a (1, 1)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' }); // (0, 3)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' }); // (0, 2)
+    fireEvent.keyDown(window, { key: 'ArrowDown' }); // (1, 2)
+    fireEvent.keyDown(window, { key: 'ArrowLeft' }); // (1, 1) - Llave Declarar 'a'
 
     expect(screen.getByText(/Llaves en Tabla: \[a\]/i)).toBeInTheDocument();
+  });
+
+  test('Circuit Precedence Hacker (Fase 2) renderiza compuertas lógicas y previene inversiones de precedencia', () => {
+    usePlayerStore.setState({ activePhase: 'syntactic', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText(/CIRCUIT PRECEDENCE HACKER/i)).toBeInTheDocument();
+
+    // Intentar conectar la compuerta raíz Stmt antes de conectar el valor factor dispara error de precedencia
+    const rootGateBtn = screen.getByRole('button', { name: /Compuerta Raíz Stmt/i });
+    fireEvent.click(rootGateBtn);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Error de Canalización/i)).toBeInTheDocument();
+  });
+
+  test('Post-Order Sniper (Fase 4) no tiene dianas duplicadas y permite derribar en orden TAC', () => {
+    usePlayerStore.setState({ activePhase: 'ir', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    // Verificamos que la diana del paso 0 está presente en la galería
+    const allButtons = screen.getAllByRole('button');
+    const firstTargetBtn = allButtons.find((btn) => btn.textContent?.includes('DISPARAR') && btn.textContent?.includes('a = 5'));
+    expect(firstTargetBtn).toBeDefined();
+
+    // Verificamos que no se duplica la misma diana
+    const countA5 = allButtons.filter((btn) => btn.textContent?.includes('a = 5')).length;
+    expect(countA5).toBe(1);
+
+    // Disparar a la primera diana legítima avanza el progreso
+    if (firstTargetBtn) {
+      fireEvent.click(firstTargetBtn);
+      expect(screen.getByText(/Dianas Derribadas: 1/i)).toBeInTheDocument();
+    }
   });
 });
