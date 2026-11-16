@@ -11,6 +11,8 @@ import { ExplainPanel } from './ExplainPanel';
 import { PhasePlayer } from './PhasePlayer';
 import { PhaseStepper } from './PhaseStepper';
 import { AstView } from './views/AstView';
+import { IrView } from './views/IrView';
+import { OptView } from './views/OptView';
 import { SymbolsView } from './views/SymbolsView';
 import { TokensView } from './views/TokensView';
 
@@ -150,8 +152,27 @@ export const ArenaScreen: React.FC = () => {
             />
           )}
 
-          {/* Fases 4-7: Resumen e información preliminar */}
-          {!['lexical', 'syntactic', 'semantic'].includes(activePhase) && (
+          {/* 4. Vista de Código Intermedio TAC (Fase 4) */}
+          {activePhase === 'ir' && currentPhaseData.output?.instructions && (
+            <IrView
+              instructions={currentPhaseData.output.instructions}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
+          )}
+
+          {/* 5. Vista de Optimización (Fase 4) */}
+          {activePhase === 'optimization' && currentPhaseData.output?.instructions && (
+            <OptView
+              instructions={currentPhaseData.output.instructions}
+              passes={currentPhaseData.output.passes || []}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
+          )}
+
+          {/* Fases 5-7: Resumen e información preliminar */}
+          {!['lexical', 'syntactic', 'semantic', 'ir', 'optimization'].includes(activePhase) && (
             <div
               style={{
                 padding: '24px',
@@ -162,7 +183,7 @@ export const ArenaScreen: React.FC = () => {
                 fontStyle: 'italic',
               }}
             >
-              Visualización especializada de {currentPhaseData.name} lista para las fases F4 a F7.
+              Visualización especializada de {currentPhaseData.name} lista para las fases F5 a F7.
             </div>
           )}
         </Panel>
