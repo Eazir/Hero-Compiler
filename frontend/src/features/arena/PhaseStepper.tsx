@@ -34,40 +34,36 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
     switch (state) {
       case 'active':
         return {
-          border: '1px solid var(--blue-bright)',
-          color: '#FFFFFF',
-          bg: 'linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(56, 189, 248, 0.15))',
+          border: '1px solid var(--line-focus)',
+          color: 'var(--text-pure)',
+          bg: 'var(--panel-3)',
           dot: 'var(--blue-bright)',
           cursor: 'pointer',
-          boxShadow: '0 2px 12px rgba(37, 99, 235, 0.25)',
         };
       case 'done':
         return {
-          border: '1px solid rgba(16, 185, 129, 0.4)',
+          border: '1px solid transparent',
           color: 'var(--text)',
-          bg: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08))',
+          bg: 'transparent',
           dot: 'var(--green-vibrant)',
           cursor: 'pointer',
-          boxShadow: 'none',
         };
       case 'error':
         return {
-          border: '1px solid var(--red)',
+          border: '1px solid rgba(244, 63, 94, 0.4)',
           color: 'var(--red)',
-          bg: 'rgba(244, 63, 94, 0.12)',
+          bg: 'var(--red-subtle)',
           dot: 'var(--red)',
           cursor: 'pointer',
-          boxShadow: 'none',
         };
       case 'locked':
       default:
         return {
-          border: '1px solid var(--line)',
+          border: '1px solid transparent',
           color: 'var(--muted)',
-          bg: 'rgba(15, 23, 42, 0.4)',
-          dot: 'var(--line)',
+          bg: 'transparent',
+          dot: 'var(--line-strong)',
           cursor: 'not-allowed',
-          boxShadow: 'none',
         };
     }
   };
@@ -77,12 +73,15 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
       <ol
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))',
-          gap: '10px',
+          gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))',
+          gap: '4px',
           listStyle: 'none',
-          padding: 0,
+          padding: '4px',
           margin: 0,
           minWidth: 0,
+          backgroundColor: 'var(--panel)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-md)',
         }}
       >
         {phases.map((p, idx) => {
@@ -109,44 +108,43 @@ export const PhaseStepper: React.FC<PhaseStepperProps> = ({
               tabIndex={state !== 'locked' ? 0 : -1}
               style={{
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-md)',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '7px 10px',
+                borderRadius: 'var(--radius-sm)',
                 backgroundColor: s.bg,
                 border: s.border,
                 color: s.color,
-                boxShadow: s.boxShadow,
                 cursor: s.cursor,
-                transition: 'all var(--motion-fast) ease',
+                transition: 'background-color var(--motion-fast), border-color var(--motion-fast)',
                 userSelect: 'none',
                 minWidth: 0,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span
-                  style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-mono)',
-                    opacity: 0.7,
-                  }}
-                >
-                  0{idx + 1}
-                </span>
-                <span
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: s.dot,
-                  }}
-                />
-              </div>
               <span
                 style={{
-                  fontSize: '0.8rem',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: s.dot,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '0.68rem',
                   fontWeight: 600,
+                  fontFamily: 'var(--font-mono)',
+                  color: isCurrent ? 'var(--blue-bright)' : 'var(--muted)',
+                  flexShrink: 0,
+                }}
+              >
+                0{idx + 1}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.76rem',
+                  fontWeight: isCurrent ? 600 : 500,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',

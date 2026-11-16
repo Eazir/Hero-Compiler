@@ -14,19 +14,18 @@ const kbdStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: '2px 7px',
-  backgroundColor: 'rgba(15, 23, 42, 0.95)',
-  border: '1px solid var(--blue-bright)',
+  padding: '1px 6px',
+  backgroundColor: 'var(--panel-inset)',
+  border: '1px solid var(--line-strong)',
   borderRadius: '4px',
-  color: '#FFFFFF',
+  color: 'var(--text-pure)',
   fontFamily: 'var(--font-mono)',
-  fontWeight: 700,
-  fontSize: '0.72rem',
-  boxShadow: '0 2px 0 rgba(0, 0, 0, 0.5)',
+  fontWeight: 600,
+  fontSize: '0.7rem',
 };
 
 // ============================================================================
-// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas Arcade y Disparos en Carriles)
+// 1. FASE LÉXICA: 🚀 SPACE LEXER (Navecitas Arcade en Carriles Verticales)
 // ============================================================================
 type LaserCannonType = 'ID' | 'NUM' | 'OP' | 'RES';
 
@@ -90,35 +89,28 @@ const SpaceLexerGame: React.FC<{
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedCannon, setSelectedCannon] = useState<LaserCannonType>('ID');
   const [shipLane, setShipLane] = useState(0);
-  const [meteorY, setMeteorY] = useState(12); // porcentaje de caída (12% a 70%)
+  const [meteorY, setMeteorY] = useState(12);
   const [laserShotAnim, setLaserShotAnim] = useState<number | null>(null);
   const [hitExplosion, setHitExplosion] = useState<number | null>(null);
-  const [destroyedTokens, setDestroyedTokens] = useState<string[]>([]);
 
   const activeToken = tokens[currentIdx];
   const targetLane = (currentIdx * 3) % 4;
 
-  // Caída animada del token meteorito hacia la línea de defensa
   useEffect(() => {
     setMeteorY(12);
     const interval = setInterval(() => {
-      setMeteorY((y) => {
-        if (y >= 70) return 70;
-        return y + 1.6;
-      });
+      setMeteorY((y) => (y >= 70 ? 70 : y + 1.6));
     }, 140);
     return () => clearInterval(interval);
   }, [currentIdx]);
 
   const handleFireAtMeteor = (cannonToUse: LaserCannonType, laneToShoot: number) => {
     if (!activeToken) return;
-
     const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : activeToken.lexeme;
 
-    // Disparo en carril vacío
     if (laneToShoot !== targetLane) {
       setLaserShotAnim(laneToShoot);
-      setTimeout(() => setLaserShotAnim(null), 250);
+      setTimeout(() => setLaserShotAnim(null), 220);
       onMistake({
         phaseName: 'Análisis Léxico (Space Lexer)',
         stepTitle: `Disparo en Carril Vacío #${laneToShoot + 1}`,
@@ -131,17 +123,14 @@ const SpaceLexerGame: React.FC<{
 
     const expectedCannon = mapTokenToCannon(activeToken.type);
 
-    // Disparo en el carril correcto con el cañón correcto
     if (cannonToUse === expectedCannon) {
       setLaserShotAnim(laneToShoot);
       setHitExplosion(targetLane);
       setTimeout(() => {
         setLaserShotAnim(null);
         setHitExplosion(null);
-      }, 260);
+      }, 220);
 
-      const nextList = [...destroyedTokens, `${lexDisplay}→${activeToken.type}`];
-      setDestroyedTokens(nextList);
       const nextIdx = currentIdx + 1;
       setCurrentIdx(nextIdx);
       onStepProgress(nextIdx);
@@ -149,9 +138,8 @@ const SpaceLexerGame: React.FC<{
         onWin();
       }
     } else {
-      // Disparo en el carril correcto con el cañón incorrecto
       setLaserShotAnim(laneToShoot);
-      setTimeout(() => setLaserShotAnim(null), 250);
+      setTimeout(() => setLaserShotAnim(null), 220);
       const chosenDef = CANNONS.find((c) => c.id === cannonToUse)!;
       const rightDef = CANNONS.find((c) => c.id === expectedCannon)!;
       onMistake({
@@ -164,7 +152,6 @@ const SpaceLexerGame: React.FC<{
     }
   };
 
-  // Referencias para evitar cierres obsoletos en los atajos de teclado
   const latestRef = useRef({
     shipLane,
     selectedCannon,
@@ -178,12 +165,9 @@ const SpaceLexerGame: React.FC<{
     };
   });
 
-  // Escuchador global de teclado: Flechas, Espacio, Tab y Teclas numéricas 1-4
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
@@ -198,18 +182,10 @@ const SpaceLexerGame: React.FC<{
       } else if (e.key === 'Tab') {
         e.preventDefault();
         const list: LaserCannonType[] = ['ID', 'NUM', 'OP', 'RES'];
-        setSelectedCannon((curr) => {
-          const nextIdx = (list.indexOf(curr) + 1) % list.length;
-          return list[nextIdx];
-        });
+        setSelectedCannon((curr) => list[(list.indexOf(curr) + 1) % list.length]);
       } else if (['1', '2', '3', '4'].includes(e.key)) {
         e.preventDefault();
-        const map: Record<string, LaserCannonType> = {
-          '1': 'ID',
-          '2': 'NUM',
-          '3': 'OP',
-          '4': 'RES',
-        };
+        const map: Record<string, LaserCannonType> = { '1': 'ID', '2': 'NUM', '3': 'OP', '4': 'RES' };
         setSelectedCannon(map[e.key]);
       }
     };
@@ -220,14 +196,11 @@ const SpaceLexerGame: React.FC<{
 
   if (!activeToken) return null;
 
-  const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n (Salto)' : `"${activeToken.lexeme}"`;
-  const nextMeteor1 = tokens[currentIdx + 1];
-  const nextMeteor2 = tokens[currentIdx + 2];
+  const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : `"${activeToken.lexeme}"`;
   const activeCannonColor = CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div
         style={{
           display: 'flex',
@@ -235,390 +208,167 @@ const SpaceLexerGame: React.FC<{
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
-          padding: '8px 14px',
+          padding: '8px 12px',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
-          fontSize: '0.78rem',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
+          fontSize: '0.76rem',
         }}
       >
-        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES ARCADE:
+        <span style={{ color: 'var(--text-pure)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+          🚀 SPACE LEXER — Token {currentIdx + 1}/{tokens.length} (Carril #{targetLane + 1})
         </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Mover Nave
-          </span>
-          <span>
-            <kbd style={kbdStyle}>ESPACIO</kbd> Disparar Láser
-          </span>
-          <span>
-            <kbd style={kbdStyle}>TAB</kbd> Cambiar Cañón (o <kbd style={kbdStyle}>1-4</kbd>)
-          </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', color: 'var(--muted-light)' }}>
+          <span><kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Mover</span>
+          <span><kbd style={kbdStyle}>TAB</kbd> Cañón</span>
+          <span><kbd style={kbdStyle}>ESPACIO</kbd> Disparar</span>
         </div>
       </div>
 
-      {/* Arena de Combate Espacial Arcade de Pantalla Larga */}
+      {/* Pista vertical de caída */}
       <div
         style={{
           position: 'relative',
-          minHeight: '460px',
-          height: '460px',
+          height: '380px',
           borderRadius: 'var(--radius-md)',
-          background:
-            'radial-gradient(circle at 50% 12%, rgba(37, 99, 235, 0.35), rgba(4, 8, 19, 0.98) 75%)',
-          border: '1px solid var(--blue-bright)',
-          padding: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
+          backgroundColor: 'var(--panel-inset)',
+          border: '1px solid var(--line)',
+          padding: '12px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '10px',
           overflow: 'hidden',
-          boxShadow: '0 0 30px rgba(15, 23, 42, 0.8)',
         }}
       >
-        {/* Cabecera del radar espacial */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '8px',
-            zIndex: 4,
-          }}
-        >
-          <span
-            style={{
-              fontSize: '0.84rem',
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--blue-bright)',
-              fontWeight: 800,
-              textShadow: '0 0 10px rgba(56, 189, 248, 0.5)',
-            }}
-          >
-            🚀 SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length} | Carril Activo: #{targetLane + 1}
-          </span>
-          <div
-            style={{
-              display: 'flex',
-              gap: '6px',
-              alignItems: 'center',
-              fontSize: '0.75rem',
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--muted)',
-            }}
-          >
-            <span>Próximos en radar:</span>
-            {nextMeteor1 && (
-              <Chip label={nextMeteor1.type === 'NEWLINE' ? '\\n' : nextMeteor1.lexeme} variant="default" />
-            )}
-            {nextMeteor2 && (
-              <Chip label={nextMeteor2.type === 'NEWLINE' ? '\\n' : nextMeteor2.lexeme} variant="default" />
-            )}
-          </div>
-        </div>
+        {[0, 1, 2, 3].map((lane) => {
+          const hasMeteor = lane === targetLane;
+          const isShipHere = lane === shipLane;
 
-        {/* 4 Pistas Verticales de Caída y Combate */}
-        <div
-          style={{
-            flex: 1,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '12px',
-            margin: '12px 0',
-            position: 'relative',
-          }}
-        >
-          {[0, 1, 2, 3].map((lane) => {
-            const hasMeteor = lane === targetLane;
-            const isShipHere = lane === shipLane;
+          return (
+            <div
+              key={lane}
+              onClick={() => setShipLane(lane)}
+              style={{
+                height: '100%',
+                borderRadius: 'var(--radius-sm)',
+                border: isShipHere ? '1px solid var(--line-focus)' : '1px solid var(--line)',
+                backgroundColor: isShipHere ? 'rgba(56, 189, 248, 0.04)' : 'transparent',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 6px',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+                CARRIL {lane + 1}
+              </span>
 
-            return (
+              {hasMeteor && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: `${meteorY}%`,
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: hitExplosion === lane ? 'var(--green)' : 'var(--panel-3)',
+                    border: `1px solid ${activeCannonColor}`,
+                    textAlign: 'center',
+                    zIndex: 3,
+                    minWidth: '82%',
+                  }}
+                >
+                  <div style={{ fontSize: '0.65rem', color: 'var(--muted-light)', fontFamily: 'var(--font-mono)' }}>
+                    L{activeToken.line}:C{activeToken.col}
+                  </div>
+                  <strong style={{ fontSize: '1rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)' }}>
+                    {lexDisplay}
+                  </strong>
+                </div>
+              )}
+
+              {laserShotAnim === lane && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: hasMeteor ? `${meteorY}%` : '8%',
+                    bottom: '48px',
+                    width: '3px',
+                    backgroundColor: activeCannonColor,
+                    zIndex: 2,
+                  }}
+                />
+              )}
+
               <div
-                key={lane}
-                onClick={() => setShipLane(lane)}
                 style={{
-                  height: '100%',
-                  borderRadius: 'var(--radius-sm)',
-                  border: hasMeteor
-                    ? '2px dashed rgba(56, 189, 248, 0.65)'
-                    : '1px dashed rgba(255, 255, 255, 0.08)',
-                  backgroundColor: hasMeteor
-                    ? 'rgba(37, 99, 235, 0.12)'
-                    : 'rgba(15, 23, 42, 0.45)',
-                  position: 'relative',
+                  marginTop: 'auto',
+                  zIndex: 3,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  transition: 'background-color 0.2s ease',
+                  gap: '2px',
                 }}
               >
-                {/* Indicador superior del carril */}
-                <span
-                  style={{
-                    fontSize: '0.68rem',
-                    color: hasMeteor ? 'var(--blue-bright)' : 'var(--muted)',
-                    fontFamily: 'var(--font-mono)',
-                    fontWeight: 700,
-                    marginTop: '8px',
-                    zIndex: 2,
-                  }}
-                >
-                  CARRIL {lane + 1}
-                </span>
-
-                {/* Línea central de radar de la pista */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '30px',
-                    bottom: '70px',
-                    width: '1px',
-                    borderLeft: '1px dashed rgba(255, 255, 255, 0.12)',
-                  }}
-                />
-
-                {/* Meteorito cayendo hacia la nave */}
-                {hasMeteor && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: `${meteorY}%`,
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      transition: 'top 0.14s linear',
-                      zIndex: 8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFireAtMeteor(selectedCannon, lane);
-                      }}
-                      aria-label={`Disparar al meteorito ${lexDisplay}`}
+                {isShipHere ? (
+                  <>
+                    <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>🛸</span>
+                    <span
                       style={{
-                        padding: '10px 16px',
-                        borderRadius: '999px',
-                        background:
-                          meteorY > 58
-                            ? 'linear-gradient(135deg, #7F1D1D, #991B1B)'
-                            : 'linear-gradient(135deg, #1E293B, #0F172A)',
-                        border: `2px solid ${meteorY > 58 ? '#EF4444' : 'var(--blue-bright)'}`,
-                        boxShadow:
-                          meteorY > 58
-                            ? '0 0 25px rgba(239, 68, 68, 0.85)'
-                            : '0 0 20px rgba(56, 189, 248, 0.55)',
-                        color: '#FFFFFF',
+                        fontSize: '0.65rem',
                         fontFamily: 'var(--font-mono)',
-                        fontWeight: 800,
-                        fontSize: '1rem',
-                        cursor: 'crosshair',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        whiteSpace: 'nowrap',
+                        color: activeCannonColor,
+                        fontWeight: 700,
                       }}
                     >
-                      <span>☄️</span>
-                      <span>{lexDisplay}</span>
-                    </button>
-                    {meteorY > 55 && (
-                      <span
-                        style={{
-                          fontSize: '0.62rem',
-                          fontFamily: 'var(--font-mono)',
-                          color: '#EF4444',
-                          fontWeight: 800,
-                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                          padding: '1px 5px',
-                          borderRadius: '3px',
-                        }}
-                      >
-                        ⚠️ ZONA DE IMPACTO
-                      </span>
-                    )}
-                  </div>
+                      [{selectedCannon}]
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>·</span>
                 )}
-
-                {/* Efecto de Explosión al derribar el meteorito */}
-                {hitExplosion === lane && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: `${meteorY}%`,
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      fontSize: '3rem',
-                      zIndex: 15,
-                      filter: 'drop-shadow(0 0 20px #F59E0B)',
-                    }}
-                  >
-                    💥
-                  </div>
-                )}
-
-                {/* Rayo láser disparado por la nave */}
-                {laserShotAnim === lane && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: '50px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: '6px',
-                      height: '320px',
-                      background: `linear-gradient(to top, ${activeCannonColor}, #FFFFFF)`,
-                      boxShadow: `0 0 20px ${activeCannonColor}, 0 0 35px ${activeCannonColor}`,
-                      borderRadius: '999px',
-                      zIndex: 7,
-                    }}
-                  />
-                )}
-
-                {/* Posición de la Nave espacial en la línea defensiva inferior */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '2px',
-                    zIndex: 9,
-                  }}
-                >
-                  {isShipHere ? (
-                    <>
-                      <span
-                        style={{
-                          fontSize: '2.2rem',
-                          filter: `drop-shadow(0 0 14px ${activeCannonColor})`,
-                          userSelect: 'none',
-                        }}
-                      >
-                        🛸
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '0.68rem',
-                          fontFamily: 'var(--font-mono)',
-                          color: activeCannonColor,
-                          fontWeight: 800,
-                          backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                          padding: '1px 8px',
-                          borderRadius: '4px',
-                          border: `1px solid ${activeCannonColor}`,
-                        }}
-                      >
-                        {selectedCannon}
-                      </span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.2)' }}>▲</span>
-                  )}
-                </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Controles de cabina en pantalla: Mover / Disparar / Mover */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '12px',
-            flexWrap: 'wrap',
-            zIndex: 4,
-          }}
-        >
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShipLane((l) => Math.max(0, l - 1))}
-          >
-            ◀ Mover Nave Izq (o tecla ◀)
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => handleFireAtMeteor(selectedCannon, shipLane)}
-          >
-            🔥 DISPARAR CAÑÓN {selectedCannon} [ESPACIO]
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShipLane((l) => Math.min(3, l + 1))}
-          >
-            Mover Nave Der ▶ (o tecla ▶)
-          </Button>
-        </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Bahía de los 4 Cañones Láser — Solo muestra el nombre sin descripción */}
+      {/* Selector de Cañones (solo nombre, sin descripciones) */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '10px',
+          gap: '8px',
         }}
       >
-        {CANNONS.map((cannon, cIdx) => {
-          const isSelected = selectedCannon === cannon.id;
+        {CANNONS.map((c) => {
+          const isSelected = selectedCannon === c.id;
           return (
             <button
-              key={cannon.id}
+              key={c.id}
               type="button"
               onClick={() => {
-                setSelectedCannon(cannon.id);
-                handleFireAtMeteor(cannon.id, shipLane);
+                setSelectedCannon(c.id);
+                handleFireAtMeteor(c.id, shipLane);
               }}
               style={{
-                textAlign: 'center',
-                padding: '12px 10px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: isSelected
-                  ? 'rgba(37, 99, 235, 0.35)'
-                  : 'rgba(15, 23, 42, 0.88)',
-                border: `2px solid ${isSelected ? cannon.color : 'var(--line)'}`,
-                color: '#FFFFFF',
+                padding: '10px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: isSelected ? 'var(--panel-3)' : 'var(--panel-2)',
+                border: isSelected ? `1px solid ${c.color}` : '1px solid var(--line)',
+                color: 'var(--text-pure)',
                 cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                boxShadow: isSelected ? `0 0 16px ${cannon.color}55` : 'none',
-                transition: 'all 0.15s ease',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                textAlign: 'center',
               }}
             >
-              <span
-                style={{
-                  fontSize: '0.92rem',
-                  fontWeight: 800,
-                  color: cannon.color,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {cannon.shortName === 'ID' && '⚡'}
-                {cannon.shortName === 'NUM' && '🟣'}
-                {cannon.shortName === 'OP' && '🟠'}
-                {cannon.shortName === 'RES' && '🟢'}{' '}
-                {cannon.name}
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-                [TAB o Tecla {cIdx + 1}]
-              </span>
+              Cañón {c.shortName}
             </button>
           );
         })}
@@ -628,24 +378,23 @@ const SpaceLexerGame: React.FC<{
 };
 
 // ============================================================================
-// 2. FASE SINTÁCTICA: ⚡ CIRCUIT PRECEDENCE HACKER (Canalizador de Compuertas AST)
+// 2. FASE SINTÁCTICA: 🏗️ AST CRANE BUILDER (Grúa Mecánica de Precedencia AST)
 // ============================================================================
-interface CircuitGate {
+interface CraneCrate {
   id: string;
-  name: string;
-  kind: 'factor' | 'term' | 'expr' | 'stmt' | 'decoy';
-  priority: number; // Menor número = mayor prioridad de conexión en AST
-  conduitLabel: string;
+  label: string;
+  priority: number;
+  isDecoy: boolean;
   explain: string;
 }
 
-const CircuitPrecedenceHackerGame: React.FC<{
+const AstCraneGame: React.FC<{
   phase: PhaseResult;
   onWin: () => void;
   onMistake: (f: GameMistakeFeedback) => void;
   onStepProgress: (idx: number) => void;
 }> = ({ phase, onWin, onMistake, onStepProgress }) => {
-  const sectors = useMemo(() => {
+  const bays = useMemo(() => {
     const rawStmts: any[] =
       phase.output?.ast?.children || phase.output?.ast?.statements || [];
     const stmts =
@@ -673,11 +422,11 @@ const CircuitPrecedenceHackerGame: React.FC<{
 
     return stmts.map((stmt, sIdx) => {
       const isAssign = stmt.kind?.toLowerCase() === 'assign';
-      const stmtLabel = isAssign ? `${stmt.name} =` : 'print()';
+      const stmtLabel = isAssign ? `${stmt.name} = ...` : 'print(...)';
       const expr = stmt.expr;
       const exprKind = expr?.kind?.toLowerCase();
 
-      const gates: CircuitGate[] = [];
+      const rawCrates: CraneCrate[] = [];
 
       if (exprKind === 'binop') {
         const rightIsBinOp = expr.right?.kind?.toLowerCase() === 'binop';
@@ -693,42 +442,45 @@ const CircuitPrecedenceHackerGame: React.FC<{
         const leftLabel = `${expr.left?.name ?? expr.left?.value ?? 'izq'}`;
 
         if (hasMul && (expr.op === '+' || expr.op === '-')) {
-          // Expresión mixta como a + b * 2: el término * TIENE MAYOR PRIORIDAD
-          gates.push({
-            id: `gate-term-${sIdx}`,
-            name: `⚡ Compuerta Term(*)`,
-            kind: 'term',
+          rawCrates.push({
+            id: `crate-term-${sIdx}`,
+            label: `Subárbol (${rightLabel})`,
             priority: 1,
-            conduitLabel: `[${rightLabel}] (Multiplicación)`,
+            isDecoy: false,
             explain:
-              'En MiniArit los operadores multiplicativos (*) tienen máxima precedencia y deben canalizarse primero en el AST.',
+              'En la gramática EBNF de MiniArit, la multiplicación (*) tiene mayor precedencia y se sitúa en el nivel más profundo del AST, por lo que la grúa debe ensamblarla primero.',
           });
-          gates.push({
-            id: `gate-expr-${sIdx}`,
-            name: `⚡ Compuerta Expr(${expr.op})`,
-            kind: 'expr',
+          rawCrates.push({
+            id: `crate-expr-${sIdx}`,
+            label: `Subárbol ${leftLabel} ${expr.op} (${rightLabel})`,
             priority: 2,
-            conduitLabel: `[${leftLabel} ${expr.op} Term] (Suma/Resta)`,
+            isDecoy: false,
             explain:
-              'La suma (+) tiene menor precedencia y solo puede conectarse una vez resuelto el término multiplicativo.',
+              'La operación aditiva (+) agrupa el operando izquierdo con el subárbol multiplicativo ya construido.',
           });
-          gates.push({
-            id: `gate-decoy-${sIdx}`,
-            name: `💥 Compuerta Señuelo: Bypass Invertido (${leftLabel} + ${expr.right?.left?.name ?? 'b'})`,
-            kind: 'decoy',
+          rawCrates.push({
+            id: `crate-decoy-${sIdx}`,
+            label: `Subárbol (${leftLabel} ${expr.op} ${expr.right?.left?.name ?? 'b'}) * ${expr.right?.right?.value ?? '2'}`,
             priority: 99,
-            conduitLabel: 'Cortocircuito de Precedencia',
+            isDecoy: true,
             explain:
-              'Intentaste evaluar la suma antes de la multiplicación, violando la jerarquía de la gramática EBNF.',
+              'Ese bloque agrupa la suma antes que la multiplicación sin paréntesis explícitos, alterando el resultado matemático del AST.',
           });
         } else {
-          gates.push({
-            id: `gate-binop-${sIdx}`,
-            name: `⚡ Compuerta Op(${expr.op})`,
-            kind: 'term',
+          rawCrates.push({
+            id: `crate-binop-${sIdx}`,
+            label: `Expresión (${leftLabel} ${expr.op} ${rightLabel})`,
             priority: 1,
-            conduitLabel: `[${leftLabel} ${expr.op} ${rightLabel}]`,
-            explain: `Derivación de la operación binaria '${expr.op}'.`,
+            isDecoy: false,
+            explain: `Primero se debe construir el nodo de la operación '${expr.op}' antes de conectarlo a la raíz de la sentencia.`,
+          });
+          rawCrates.push({
+            id: `crate-decoy-op-${sIdx}`,
+            label: `Invertir (${rightLabel} = ${leftLabel})`,
+            priority: 99,
+            isDecoy: true,
+            explain:
+              'En una asignación o expresión el identificador destino va a la izquierda y el valor evaluado a la derecha.',
           });
         }
       } else {
@@ -736,147 +488,161 @@ const CircuitPrecedenceHackerGame: React.FC<{
         const valText = isNeg
           ? `-${expr.operand?.name ?? expr.operand?.value}`
           : `${expr?.name ?? expr?.value ?? '0'}`;
-        gates.push({
-          id: `gate-factor-${sIdx}`,
-          name: `⚡ Compuerta Valor`,
-          kind: 'factor',
+        rawCrates.push({
+          id: `crate-val-${sIdx}`,
+          label: `Hoja Terminal [${valText}]`,
           priority: 1,
-          conduitLabel: `[${valText}] (Factor directo)`,
-          explain: 'Conexión directa del valor terminal hacia la sentencia.',
+          isDecoy: false,
+          explain: `En un árbol sintáctico ascendente, la hoja del operando [${valText}] se coloca antes que el nodo raíz de la sentencia.`,
         });
       }
 
-      // Compuerta final de sentencia
-      gates.push({
-        id: `gate-stmt-${sIdx}`,
-        name: `🔌 Compuerta Raíz Stmt`,
-        kind: 'stmt',
+      rawCrates.push({
+        id: `crate-root-${sIdx}`,
+        label: `Nodo Raíz [${stmtLabel}]`,
         priority: 10,
-        conduitLabel: `[${stmtLabel} Expr]`,
-        explain: 'Cierre del nodo de sentencia en la raíz del árbol AST.',
+        isDecoy: false,
+        explain:
+          'El nodo raíz de la sentencia se coloca al final para coronar el subárbol cuyos operandos ya fueron izados por la grúa.',
       });
 
+      const shuffled = [...rawCrates];
+      let seed = (sIdx + 1) * 7919;
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        const j = seed % (i + 1);
+        const tmp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = tmp;
+      }
+      if (shuffled.length > 1 && shuffled[0].priority === 1) {
+        const first = shuffled.shift()!;
+        shuffled.push(first);
+      }
+
+      const fullCode = isAssign
+        ? `${stmt.name} = ${
+            exprKind === 'binop'
+              ? `${expr.left?.name ?? expr.left?.value} ${expr.op} ${
+                  expr.right?.kind?.toLowerCase() === 'binop'
+                    ? `${expr.right.left?.name ?? expr.right.left?.value} ${expr.right.op} ${expr.right.right?.name ?? expr.right.right?.value}`
+                    : `${expr.right?.name ?? expr.right?.value}`
+                }`
+              : `${expr?.name ?? expr?.value}`
+          }`
+        : `print(${expr?.name ?? expr?.value ?? 'expr'})`;
+
       return {
-        sectorIndex: sIdx,
-        title: `Sector #${sIdx + 1}: ${stmtLabel} (Línea ${sIdx + 1})`,
-        gates,
+        bayIndex: sIdx,
+        title: `Sentencia #${sIdx + 1}: ${fullCode}`,
+        crates: shuffled,
       };
     });
   }, [phase]);
 
-  const [activeSectorIdx, setActiveSectorIdx] = useState(0);
-  const [connectedGateIds, setConnectedGateIds] = useState<string[]>([]);
-  const [cursorIdx, setCursorIdx] = useState(0);
-  const [powerSurgeAnim, setPowerSurgeAnim] = useState<string | null>(null);
+  const [bayIdx, setBayIdx] = useState(0);
+  const [craneCol, setCraneCol] = useState(0);
+  const [hoistedIds, setHoistedIds] = useState<string[]>([]);
+  const [clawDropping, setClawDropping] = useState(false);
 
-  const currentSector = sectors[activeSectorIdx] || sectors[0];
-  const activeGates = currentSector?.gates || [];
+  const currentBay = bays[bayIdx];
+  const crates = currentBay?.crates || [];
 
-  // Próxima compuerta esperada según menor prioridad pendiente
-  const nextExpectedGate = useMemo(() => {
-    const pending = activeGates
-      .filter((g) => g.kind !== 'decoy' && !connectedGateIds.includes(g.id))
-      .sort((a, b) => a.priority - b.priority);
-    return pending[0] || null;
-  }, [activeGates, connectedGateIds]);
+  const requiredCratesSorted = useMemo(
+    () => crates.filter((c) => !c.isDecoy).sort((a, b) => a.priority - b.priority),
+    [crates]
+  );
 
-  const handleActivateGate = (gate: CircuitGate) => {
-    if (!nextExpectedGate) return;
+  const nextExpectedCrate = useMemo(
+    () => requiredCratesSorted.find((c) => !hoistedIds.includes(c.id)) || null,
+    [requiredCratesSorted, hoistedIds]
+  );
 
-    if (gate.kind === 'decoy') {
+  const handleDropClaw = (targetColIndex?: number) => {
+    const col = typeof targetColIndex === 'number' ? targetColIndex : craneCol;
+    if (!currentBay || !nextExpectedCrate) return;
+    const crate = crates[col];
+    if (!crate || hoistedIds.includes(crate.id)) return;
+
+    setClawDropping(true);
+    setTimeout(() => setClawDropping(false), 180);
+
+    if (crate.isDecoy) {
       onMistake({
-        phaseName: 'Análisis Sintáctico (Circuit Precedence Hacker)',
-        stepTitle: `Cortocircuito en ${currentSector.title}`,
-        userAnswer: `Activaste la compuerta de bypass erróneo [${gate.name}]`,
-        whatWentWrong:
-          '¡Sobrecarga de circuito por violación de precedencia! Intentaste forzar la suma antes de la multiplicación.',
-        whatShouldBeDone: `Conecta primero la compuerta de mayor precedencia [${nextExpectedGate.name}] (${nextExpectedGate.conduitLabel}).`,
+        phaseName: 'Análisis Sintáctico (AST Crane Builder)',
+        stepTitle: `Inversión de Precedencia en ${currentBay.title}`,
+        userAnswer: `La grúa capturó el bloque inválido "${crate.label}"`,
+        whatWentWrong: crate.explain,
+        whatShouldBeDone: `Mueve la grúa con ◀ / ▶ hasta "${nextExpectedCrate.label}" y pulsa ESPACIO para izarlo al árbol AST.`,
       });
       return;
     }
 
-    if (gate.id === nextExpectedGate.id) {
-      setPowerSurgeAnim(gate.id);
-      setTimeout(() => setPowerSurgeAnim(null), 300);
-
-      const nextConnected = [...connectedGateIds, gate.id];
-      setConnectedGateIds(nextConnected);
-
-      const remainingInSector = activeGates.filter(
-        (g) => g.kind !== 'decoy' && !nextConnected.includes(g.id)
-      );
-
-      if (remainingInSector.length === 0) {
-        // Sector completado!
-        const nextSector = activeSectorIdx + 1;
-        onStepProgress(nextSector);
-        if (nextSector >= sectors.length) {
-          onWin();
-        } else {
-          setActiveSectorIdx(nextSector);
-          setCursorIdx(0);
-        }
-      }
-    } else {
+    if (crate.id !== nextExpectedCrate.id) {
       onMistake({
-        phaseName: 'Análisis Sintáctico (Circuit Precedence Hacker)',
-        stepTitle: `Error de Canalización en ${currentSector.title}`,
-        userAnswer: `Activaste [${gate.name}] antes que [${nextExpectedGate.name}]`,
-        whatWentWrong: `El flujo de corriente lógica se bloqueó. No puedes derivar la compuerta [${gate.name}] sin antes haber conectado [${nextExpectedGate.name}].`,
-        whatShouldBeDone: `${nextExpectedGate.explain} Selecciona con las flechas [${nextExpectedGate.name}] y pulsa ESPACIO para canalizarla.`,
+        phaseName: 'Análisis Sintáctico (AST Crane Builder)',
+        stepTitle: `Error de Jerarquía AST en ${currentBay.title}`,
+        userAnswer: `Intentaste izar "${crate.label}" antes de "${nextExpectedCrate.label}"`,
+        whatWentWrong:
+          'En la construcción ascendente del AST, no puedes colocar un nodo padre sin haber ensamblado primero sus subexpresiones e hijos de mayor precedencia.',
+        whatShouldBeDone: `${nextExpectedCrate.explain} Desplaza la grúa hacia "${nextExpectedCrate.label}" y baja la garra.`,
       });
+      return;
+    }
+
+    const updated = [...hoistedIds, crate.id];
+    setHoistedIds(updated);
+
+    if (updated.length >= requiredCratesSorted.length) {
+      const nextBay = bayIdx + 1;
+      onStepProgress(nextBay);
+      if (nextBay >= bays.length) {
+        onWin();
+      } else {
+        setBayIdx(nextBay);
+        setHoistedIds([]);
+        setCraneCol(0);
+      }
     }
   };
 
-  const latestHackerRef = useRef({
-    activeGates,
-    cursorIdx,
-    handleActivateGate,
-  });
+  const latestCraneRef = useRef({ craneCol, crates, handleDropClaw });
   useEffect(() => {
-    latestHackerRef.current = {
-      activeGates,
-      cursorIdx,
-      handleActivateGate,
-    };
+    latestCraneRef.current = { craneCol, crates, handleDropClaw };
   });
 
-  // Escuchador de teclado: Flechas para mover el cursor hacker y ESPACIO/ENTER para activar la compuerta
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const { activeGates: ag, cursorIdx: cIdx, handleActivateGate: ha } = latestHackerRef.current;
-      if (ag.length === 0) return;
+      const { craneCol: cc, crates: cr, handleDropClaw: hdc } = latestCraneRef.current;
+      if (cr.length === 0) return;
 
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'a' || e.key === 'A') {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        setCursorIdx((i) => (i - 1 + ag.length) % ag.length);
+        setCraneCol((c) => Math.max(0, c - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        setCraneCol((c) => Math.min(cr.length - 1, c + 1));
       } else if (
-        e.key === 'ArrowRight' ||
         e.key === 'ArrowDown' ||
-        e.key === 'd' ||
-        e.key === 'D' ||
-        e.key === 'Tab'
+        e.key === 's' ||
+        e.key === 'S' ||
+        e.key === ' ' ||
+        e.code === 'Space' ||
+        e.key === 'Enter'
       ) {
         e.preventDefault();
-        setCursorIdx((i) => (i + 1) % ag.length);
-      } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
-        e.preventDefault();
-        if (ag[cIdx]) {
-          ha(ag[cIdx]);
-        }
+        hdc(cc);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (!currentSector) return null;
+  if (!currentBay) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div
         style={{
           display: 'flex',
@@ -884,173 +650,180 @@ const CircuitPrecedenceHackerGame: React.FC<{
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
-          padding: '8px 14px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(16, 185, 129, 0.4)',
-          fontSize: '0.78rem',
         }}
       >
-        <span style={{ color: 'var(--green)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES HACKER:
-        </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> <kbd style={kbdStyle}>▲</kbd>{' '}
-            <kbd style={kbdStyle}>▼</kbd> Mover Cursor Hacker
+        <div>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)', fontWeight: 700 }}>
+            🏗️ GRÚA MECÁNICA AST (AST CRANE BUILDER) — {currentBay.title}
           </span>
-          <span>
-            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Canalizar Compuerta AST
-          </span>
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted-light)', margin: '2px 0 0 0' }}>
+            Ensambla el árbol desde las hojas y operaciones de mayor precedencia (*) hasta la raíz de la sentencia ({bayIdx + 1}/{bays.length}).
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.74rem', color: 'var(--muted-light)' }}>
+          <span><kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Mover Grúa</span>
+          <span><kbd style={kbdStyle}>▼</kbd> / <kbd style={kbdStyle}>ESPACIO</kbd> Bajar Garra</span>
         </div>
       </div>
 
       <div
         style={{
-          padding: '16px',
+          padding: '14px',
           borderRadius: 'var(--radius-md)',
-          background:
-            'radial-gradient(circle at 50% 20%, rgba(16, 185, 129, 0.22), rgba(5, 10, 22, 0.98) 85%)',
-          border: '1px solid var(--green)',
+          backgroundColor: 'var(--panel-inset)',
+          border: '1px solid var(--line)',
           display: 'flex',
           flexDirection: 'column',
           gap: '14px',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '8px',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '0.86rem',
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--green)',
-              fontWeight: 800,
-            }}
-          >
-            ⚡ CIRCUIT PRECEDENCE HACKER — {currentSector.title} (Sector {activeSectorIdx + 1} de{' '}
-            {sectors.length})
-          </span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
-            {nextExpectedGate
-              ? `⚡ Próxima compuerta a derivar: ${nextExpectedGate.name} (${nextExpectedGate.conduitLabel})`
-              : '⚡ ¡Sector energizado al 100%!'}
-          </span>
-        </div>
-
-        {/* Matriz interactiva de compuertas lógicas y tuberías de precedencia */}
+        {/* Riel superior y carro de la grúa */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
-            gap: '12px',
+            gridTemplateColumns: `repeat(${crates.length}, 1fr)`,
+            gap: '10px',
+            paddingBottom: '8px',
+            borderBottom: '2px dashed var(--line-strong)',
           }}
         >
-          {activeGates.map((gate, gIdx) => {
-            const isConnected = connectedGateIds.includes(gate.id);
-            const isFocused = cursorIdx === gIdx;
-            const isSurging = powerSurgeAnim === gate.id;
-            const isDecoy = gate.kind === 'decoy';
-
+          {crates.map((c, idx) => {
+            const isHere = craneCol === idx;
             return (
-              <button
-                key={gate.id}
-                type="button"
-                disabled={isConnected}
-                onClick={() => {
-                  setCursorIdx(gIdx);
-                  handleActivateGate(gate);
-                }}
+              <div
+                key={`rail-${c.id}`}
                 style={{
-                  padding: '14px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: isSurging
-                    ? 'rgba(16, 185, 129, 0.45)'
-                    : isConnected
-                    ? 'rgba(16, 185, 129, 0.18)'
-                    : isDecoy
-                    ? 'rgba(239, 68, 68, 0.15)'
-                    : isFocused
-                    ? 'rgba(37, 99, 235, 0.28)'
-                    : 'rgba(15, 23, 42, 0.88)',
-                  border: isSurging
-                    ? '2px solid #10B981'
-                    : isConnected
-                    ? '1px solid var(--green)'
-                    : isFocused
-                    ? '2px solid var(--blue-bright)'
-                    : isDecoy
-                    ? '1px dashed rgba(239, 68, 68, 0.5)'
-                    : '1px solid var(--line-strong)',
-                  color: isConnected ? 'var(--green)' : '#FFFFFF',
-                  cursor: isConnected ? 'default' : 'pointer',
-                  textAlign: 'left',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '6px',
-                  boxShadow: isFocused
-                    ? '0 0 16px rgba(56, 189, 248, 0.5)'
-                    : isConnected
-                    ? '0 0 12px rgba(16, 185, 129, 0.3)'
-                    : 'none',
-                  transition: 'all 0.15s ease',
-                  opacity: isConnected ? 0.75 : 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '48px',
+                  transition: 'transform var(--motion-fast)',
+                  transform: isHere && clawDropping ? 'translateY(10px)' : 'translateY(0)',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong
+                {isHere ? (
+                  <div
                     style={{
-                      fontSize: '0.86rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      color: 'var(--blue-bright)',
                       fontFamily: 'var(--font-mono)',
-                      color: isConnected
-                        ? 'var(--green)'
-                        : isDecoy
-                        ? '#EF4444'
-                        : isFocused
-                        ? 'var(--blue-bright)'
-                        : '#FFFFFF',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
                     }}
                   >
-                    {isConnected ? '✅ ENERGIZADA' : gate.name}
-                  </strong>
-                  {isFocused && !isConnected && (
-                    <span
-                      style={{
-                        fontSize: '0.68rem',
-                        color: 'var(--blue-bright)',
-                        fontFamily: 'var(--font-mono)',
-                        backgroundColor: 'rgba(37, 99, 235, 0.3)',
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                      }}
-                    >
-                      [ESPACIO]
-                    </span>
-                  )}
-                </div>
+                    <span>═══[⚙️]═══</span>
+                    <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🪝</span>
+                  </div>
+                ) : (
+                  <span style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                    ───┼───
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-                <div
-                  style={{
-                    fontSize: '0.78rem',
-                    fontFamily: 'var(--font-mono)',
-                    color: isConnected ? 'var(--green)' : 'var(--text)',
-                  }}
-                >
-                  Conduit: {gate.conduitLabel}
-                </div>
-
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', lineHeight: 1.2 }}>
-                  {gate.explain}
-                </div>
+        {/* Plataforma de Contenedores AST */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${crates.length}, 1fr)`,
+            gap: '10px',
+          }}
+        >
+          {crates.map((crate, idx) => {
+            const isHoisted = hoistedIds.includes(crate.id);
+            const isUnderClaw = craneCol === idx;
+            return (
+              <button
+                key={crate.id}
+                type="button"
+                disabled={isHoisted}
+                onClick={() => {
+                  setCraneCol(idx);
+                  handleDropClaw(idx);
+                }}
+                style={{
+                  minHeight: '78px',
+                  padding: '12px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: isHoisted
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : isUnderClaw
+                    ? 'var(--panel-3)'
+                    : 'var(--panel-2)',
+                  border: isHoisted
+                    ? '1px solid rgba(16, 185, 129, 0.35)'
+                    : isUnderClaw
+                    ? '1px solid var(--line-focus)'
+                    : '1px solid var(--line)',
+                  color: isHoisted ? 'var(--green)' : 'var(--text-pure)',
+                  cursor: isHoisted ? 'default' : 'pointer',
+                  opacity: isHoisted ? 0.55 : 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontFamily: 'var(--font-mono)',
+                  transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
+                }}
+              >
+                <span style={{ fontSize: '0.7rem', color: isHoisted ? 'var(--green)' : 'var(--muted)' }}>
+                  {isHoisted ? '✓ IZADO AL AST' : isUnderClaw ? '🪝 BAJAR GARRA [ESPACIO]' : `CARRIL #${idx + 1}`}
+                </span>
+                <strong style={{ fontSize: '0.84rem', textAlign: 'center', lineHeight: 1.25 }}>
+                  {crate.label}
+                </strong>
               </button>
             );
           })}
+        </div>
+
+        {/* Pila de Nodos AST ya ensamblados */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--line)',
+            fontSize: '0.75rem',
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--muted-light)',
+          }}
+        >
+          <span>Nodos acoplados ({hoistedIds.length}/{requiredCratesSorted.length}):</span>
+          {hoistedIds.length === 0 ? (
+            <span style={{ color: 'var(--muted)' }}>Ninguno aún — captura primero el nodo de mayor precedencia</span>
+          ) : (
+            hoistedIds.map((id, idx) => {
+              const found = crates.find((c) => c.id === id);
+              return (
+                <span
+                  key={id}
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--green-subtle)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    color: 'var(--green-bright)',
+                  }}
+                >
+                  {idx + 1}. {found?.label}
+                </span>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
@@ -1058,7 +831,7 @@ const CircuitPrecedenceHackerGame: React.FC<{
 };
 
 // ============================================================================
-// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto Multicamino 6x6 con Trampas y Teclado)
+// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE 6x6 (Adyacencia Estricta, Orden Secuencial y Terminales Camuflados)
 // ============================================================================
 const SymbolMazeGame: React.FC<{
   phase: PhaseResult;
@@ -1076,9 +849,9 @@ const SymbolMazeGame: React.FC<{
   const [unlockedGates, setUnlockedGates] = useState<string[]>([]);
 
   const firstVar = symbols[0]?.name || 'a';
-  const secondVar = symbols[1]?.name || firstVar;
+  const secondVar = symbols[1]?.name || 'b';
+  const thirdVar = symbols[2]?.name || 'c';
 
-  // Paredes del laberinto 6x6 que crean bifurcaciones y caminos estratégicos
   const walls = useMemo(
     () =>
       new Set([
@@ -1094,109 +867,119 @@ const SymbolMazeGame: React.FC<{
   const tryMove = (targetR: number, targetC: number) => {
     if (targetR < 0 || targetR > 5 || targetC < 0 || targetC > 5) return;
 
+    // Adyacencia ortogonal estricta: prohibido saltar casillas o elegir en desorden haciendo clic lejano
+    const manhattanDist = Math.abs(targetR - dronePos.r) + Math.abs(targetC - dronePos.c);
+    if (manhattanDist !== 1) {
+      return;
+    }
+
     if (walls.has(`${targetR},${targetC}`)) {
       return;
     }
 
-    // Trampa 1 en (0, 5): Atajo tentador con variable fantasma 'z_undef' no declarada (E-301)
+    // Nodo camuflado 1 en (0, 5): "c = a + z_undef" (Variable no declarada E-301)
     if (targetR === 0 && targetC === 5) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
-        stepTitle: 'Bifurcación #1: Atajo Trampa — Variable No Declarada (E-301)',
-        userAnswer: 'Tomaste el atajo superior directo hacia (0, 5) leyendo la variable fantasma "z_undef"',
+        stepTitle: 'Error Semántico: Variable No Declarada (E-301)',
+        userAnswer: 'Ejecutaste el terminal "c = a + z_undef" en (0, 5)',
         whatWentWrong:
-          'Intentaste leer en memoria una variable inexistente en la Tabla de Símbolos. En MiniArit, toda variable debe ser declarada previamente con una asignación (E-301).',
-        whatShouldBeDone: `No caigas en el atajo tentador. Regresa a la bifurcación (0, 2), baja hacia (1, 2) y recoge la llave 🔑 Declarar '${firstVar}'.`,
+          'El identificador "z_undef" no ha sido declarado en ninguna línea previa del programa. El analizador semántico rechaza cualquier lectura fuera de la Tabla de Símbolos.',
+        whatShouldBeDone: `Retrocede hasta la encrucijada (0, 2) y dirígete a registrar primero "DECL ${firstVar}" en (1, 1).`,
       });
       return;
     }
 
-    // Trampa 2 en (2, 0): Uso de variable antes de su declaración por línea (E-301)
+    // Nodo camuflado 2 en (2, 0): "x = b + 1" (Uso de 'b' antes de su declaración en línea 2 - E-301)
     if (targetR === 2 && targetC === 0) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
-        stepTitle: 'Bifurcación #2: Trampa de Alcance Temporal (E-301)',
-        userAnswer: `Intentaste usar "${secondVar}" en una línea previa a su declaración`,
-        whatWentWrong:
-          'El análisis semántico comprueba que cada identificador haya sido asignado en una línea estrictamente anterior a su lectura en expresiones.',
-        whatShouldBeDone: `Regresa a la bifurcación central (2, 2), ve hacia la derecha pasando por (2, 3) y registra primero la declaración de '${secondVar}' en (3, 4).`,
+        stepTitle: 'Error de Alcance Secuencial: Variable No Declarada Aún (E-301)',
+        userAnswer: `Intentaste evaluar "x = ${secondVar} + 1" en (2, 0) antes de declarar '${secondVar}'`,
+        whatWentWrong: `Aunque '${secondVar}' aparece en el programa, en este punto del recorrido aún no ha sido registrada en la Tabla de Símbolos.`,
+        whatShouldBeDone: `Regresa a (2, 2), toma el corredor derecho hacia (3, 4) y registra primero "DECL ${secondVar}".`,
       });
       return;
     }
 
-    // Trampa 3 en (5, 2): Desbordamiento o lectura fuera de ámbito (E-301 / E-401)
+    // Nodo camuflado 3 en (5, 2): "print(res)" (Identificador inexistente en tabla - E-301)
     if (targetR === 5 && targetC === 2) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
-        stepTitle: 'Bifurcación #2 (Sur): Trampa de Memoria No Asignada',
-        userAnswer: 'Guiaste el dron al callejón sin salida del sur (5, 2)',
+        stepTitle: 'Error Semántico: Variable No Declarada (E-301)',
+        userAnswer: 'Activaste el terminal "print(res)" en (5, 2)',
         whatWentWrong:
-          'Esa celda intenta referenciar un registro de memoria sin inicializar, disparando un fallo de consistencia semántica.',
-        whatShouldBeDone: `Sube de vuelta a (2, 2) y toma la ruta este para registrar '${secondVar}' y cruzar la compuerta de validación en (4, 4).`,
+          'La variable "res" no existe en la Tabla de Símbolos. La variable calculada en el programa es "' + thirdVar + '".',
+        whatShouldBeDone: `Sube de regreso a (2, 2) y sigue la ruta hacia "DECL ${secondVar}" en (3, 4).`,
       });
       return;
     }
 
-    // Compuerta de uso en (4, 4): requiere haber recogido ambas llaves
-    if (targetR === 4 && targetC === 4 && !collectedKeys.includes(secondVar)) {
+    // Orden secuencial estricto: No se puede declarar la 2da variable en (3, 4) sin haber declarado la 1ra en (1, 1)
+    if (targetR === 3 && targetC === 4 && !collectedKeys.includes(firstVar)) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
-        stepTitle: `Compuerta Semántica: Usar '${secondVar}' en Expresión`,
-        userAnswer: `Intentaste cruzar la compuerta de uso sin haber declarado '${secondVar}'`,
-        whatWentWrong: `El compilador intentó generar código de lectura para '${secondVar}', pero la variable no existe en la Tabla de Símbolos en este punto.`,
-        whatShouldBeDone: `Ve a la celda 🔑 Declarar '${secondVar}' en (3, 4) para registrarla en la tabla antes de abrir la compuerta 🚪.`,
+        stepTitle: 'Violación de Orden de Declaración por Línea',
+        userAnswer: `Intentaste registrar "DECL ${secondVar}" (Línea 2) sin haber registrado "DECL ${firstVar}" (Línea 1)`,
+        whatWentWrong:
+          'El analizador semántico recorre el AST estrictamente línea por línea de arriba hacia abajo; no puede procesar la línea 2 antes que la línea 1.',
+        whatShouldBeDone: `Dirígete primero al terminal "DECL ${firstVar}" en (1, 1) y luego vuelve a (3, 4).`,
       });
       return;
     }
 
-    // Meta en (5, 5): requiere haber cruzado la compuerta de validación
+    // Compuerta de evaluación en (4, 4): requiere que tanto firstVar como secondVar estén en la Tabla de Símbolos
+    if (targetR === 4 && targetC === 4 && (!collectedKeys.includes(firstVar) || !collectedKeys.includes(secondVar))) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
+        stepTitle: `Verificación de Expresión: ${thirdVar} = ${firstVar} + ${secondVar} * 2`,
+        userAnswer: `Intentaste evaluar "${thirdVar} = ${firstVar} + ${secondVar} * 2" sin tener '${firstVar}' y '${secondVar}' en la Tabla de Símbolos`,
+        whatWentWrong: `Para validar la línea 3, ambos operandos ('${firstVar}' y '${secondVar}') deben estar previamente registrados (E-301).`,
+        whatShouldBeDone: `Asegúrate de activar en orden "DECL ${firstVar}" en (1, 1) y "DECL ${secondVar}" en (3, 4) antes de cruzar (4, 4).`,
+      });
+      return;
+    }
+
+    // Meta en (5, 5): print(c) requiere haber validado (4, 4)
     if (targetR === 5 && targetC === 5 && !unlockedGates.includes(secondVar)) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze 6x6)',
-        stepTitle: 'Portal de Salida Semántica',
-        userAnswer: 'Intentaste salir sin haber validado el uso de variables en la compuerta',
+        stepTitle: `Verificación de Salida: print(${thirdVar})`,
+        userAnswer: `Intentaste ejecutar "print(${thirdVar})" sin haber declarado '${thirdVar}' en (4, 4)`,
         whatWentWrong:
-          'El análisis semántico debe verificar tanto la tabla de símbolos como las referencias antes de autorizar la generación de código intermedio.',
-        whatShouldBeDone: `Asegúrate de cruzar la compuerta 🚪 en (4, 4) tras recoger ambas llaves 🔑 y luego entra al Portal 🏁.`,
+          'No se puede imprimir una variable cuya asignación no ha sido validada previamente en el análisis semántico.',
+        whatShouldBeDone: `Pasa primero por el nodo "${thirdVar} = ${firstVar} + ${secondVar} * 2" en (4, 4) y luego avanza a (5, 5).`,
       });
       return;
     }
 
     setDronePos({ r: targetR, c: targetC });
 
-    // Llave 1 en (1, 1)
     if (targetR === 1 && targetC === 1 && !collectedKeys.includes(firstVar)) {
       setCollectedKeys((prev) => [...prev, firstVar]);
       onStepProgress(1);
     }
-    // Llave 2 en (3, 4)
     if (targetR === 3 && targetC === 4 && !collectedKeys.includes(secondVar)) {
       setCollectedKeys((prev) => [...prev, secondVar]);
       onStepProgress(2);
     }
-    // Compuerta en (4, 4)
     if (targetR === 4 && targetC === 4 && !unlockedGates.includes(secondVar)) {
       setUnlockedGates((prev) => [...prev, secondVar]);
       onStepProgress(3);
     }
-    // Meta en (5, 5)
     if (targetR === 5 && targetC === 5) {
       onWin();
     }
   };
 
-  // Referencia para evitar cierres obsoletos al pulsar flechas de teclado
   const latestMazeRef = useRef({ dronePos, tryMove });
   useEffect(() => {
     latestMazeRef.current = { dronePos, tryMove };
   });
 
-  // Escuchador de teclado: Flechas de dirección y teclas WASD
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const { dronePos: dp, tryMove: tm } = latestMazeRef.current;
 
       if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
@@ -1219,164 +1002,162 @@ const SymbolMazeGame: React.FC<{
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '8px',
-          padding: '8px 14px',
+          gap: '10px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
-          fontSize: '0.78rem',
         }}
       >
-        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES TECLADO:
-        </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>W/A/S/D</kbd> Mover Dron 🤖 por el Laberinto 6x6
+        <div>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)', fontWeight: 700 }}>
+            🧭 LABERINTO MULTICAMINO 6x6 (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
           </span>
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted-light)', margin: '2px 0 0 0' }}>
+            Desplázate casilla por casilla (<kbd style={kbdStyle}>▲</kbd><kbd style={kbdStyle}>▼</kbd><kbd style={kbdStyle}>◀</kbd><kbd style={kbdStyle}>▶</kbd>). Verifica qué variables existen en la Tabla de Símbolos antes de entrar a un nodo ◈.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r - 1, dronePos.c)}>▲</Button>
+          <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r + 1, dronePos.c)}>▼</Button>
+          <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c - 1)}>◀</Button>
+          <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c + 1)}>▶</Button>
         </div>
       </div>
+
       <div
         style={{
-          padding: '16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(6, 1fr)',
+          gap: '6px',
+          padding: '12px',
+          backgroundColor: 'var(--panel-inset)',
+          border: '1px solid var(--line)',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(10, 20, 38, 0.92)',
-          border: '1px solid var(--blue-bright)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-              🧭 LABERINTO MULTICAMINO 6x6 (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
-            </span>
-            <p style={{ fontSize: '0.76rem', color: 'var(--muted)', margin: '2px 0 0 0' }}>
-              Guía al dron 🤖 por las bifurcaciones. Evita los atajos trampa (☠️), recoge las declaraciones 🔑 y cruza la compuerta 🚪 hasta la meta 🏁.
-            </p>
-          </div>
+        {[0, 1, 2, 3, 4, 5].map((r) =>
+          [0, 1, 2, 3, 4, 5].map((c) => {
+            const isDrone = dronePos.r === r && dronePos.c === c;
+            const isWall = walls.has(`${r},${c}`);
+            const isAdjacent = Math.abs(r - dronePos.r) + Math.abs(c - dronePos.c) === 1 && !isWall;
 
-          {/* Controles D-Pad de movimiento del Dron */}
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r - 1, dronePos.c)}>
-              ▲
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r + 1, dronePos.c)}>
-              ▼
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c - 1)}>
-              ◀
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c + 1)}>
-              ▶
-            </Button>
-          </div>
-        </div>
+            const isFalseNode1 = r === 0 && c === 5;
+            const isFalseNode2 = r === 2 && c === 0;
+            const isFalseNode3 = r === 5 && c === 2;
+            const isKey1 = r === 1 && c === 1;
+            const isKey2 = r === 3 && c === 4;
+            const isGate = r === 4 && c === 4;
+            const isGoal = r === 5 && c === 5;
 
-        {/* Cuadrícula 6x6 del Laberinto */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(6, 1fr)',
-            gap: '6px',
-          }}
-        >
-          {[0, 1, 2, 3, 4, 5].map((r) =>
-            [0, 1, 2, 3, 4, 5].map((c) => {
-              const isDrone = dronePos.r === r && dronePos.c === c;
-              const isWall = walls.has(`${r},${c}`);
-              const isTrap1 = r === 0 && c === 5;
-              const isTrap2 = r === 2 && c === 0;
-              const isTrap3 = r === 5 && c === 2;
-              const isKey1 = r === 1 && c === 1;
-              const isKey2 = r === 3 && c === 4;
-              const isGate = r === 4 && c === 4;
-              const isGoal = r === 5 && c === 5;
+            const isTerminalNode =
+              isFalseNode1 || isFalseNode2 || isFalseNode3 || isKey1 || isKey2 || isGate || isGoal;
 
-              let cellLabel = 'Pasillo';
-              let icon = '·';
-              if (isWall) {
-                cellLabel = 'Muro';
-                icon = '🧱';
-              } else if (isTrap1) {
-                cellLabel = 'Trampa: z_undef';
-                icon = '☠️';
-              } else if (isTrap2) {
-                cellLabel = 'Trampa: Uso previo';
-                icon = '☠️';
-              } else if (isTrap3) {
-                cellLabel = 'Trampa: Desborde';
-                icon = '☠️';
-              } else if (isKey1) {
-                cellLabel = `Declarar ${firstVar}`;
-                icon = collectedKeys.includes(firstVar) ? '✅' : '🔑';
-              } else if (isKey2) {
-                cellLabel = `Declarar ${secondVar}`;
-                icon = collectedKeys.includes(secondVar) ? '✅' : '🔑';
-              } else if (isGate) {
-                cellLabel = `Puerta: Usar ${secondVar}`;
-                icon = unlockedGates.includes(secondVar) ? '🔓' : '🚪';
-              } else if (isGoal) {
-                cellLabel = 'Meta Semántica';
-                icon = '🏁';
-              }
+            let cellLabel = '';
+            let icon = '·';
 
-              return (
-                <button
-                  key={`${r}-${c}`}
-                  type="button"
-                  disabled={isWall}
-                  onClick={() => tryMove(r, c)}
+            if (isWall) {
+              cellLabel = '';
+              icon = '▪';
+            } else if (isFalseNode1) {
+              cellLabel = `${thirdVar} = ${firstVar} + z_undef`;
+              icon = '◈';
+            } else if (isFalseNode2) {
+              cellLabel = `x = ${secondVar} + 1`;
+              icon = '◈';
+            } else if (isFalseNode3) {
+              cellLabel = 'print(res)';
+              icon = '◈';
+            } else if (isKey1) {
+              cellLabel = `DECL ${firstVar} = 5`;
+              icon = collectedKeys.includes(firstVar) ? '✓' : '◈';
+            } else if (isKey2) {
+              cellLabel = `DECL ${secondVar} = 3`;
+              icon = collectedKeys.includes(secondVar) ? '✓' : '◈';
+            } else if (isGate) {
+              cellLabel = `${thirdVar} = ${firstVar} + ${secondVar} * 2`;
+              icon = unlockedGates.includes(secondVar) ? '✓' : '◈';
+            } else if (isGoal) {
+              cellLabel = `print(${thirdVar})`;
+              icon = '◈';
+            }
+
+            const isCompletedNode =
+              (isKey1 && collectedKeys.includes(firstVar)) ||
+              (isKey2 && collectedKeys.includes(secondVar)) ||
+              (isGate && unlockedGates.includes(secondVar));
+
+            return (
+              <button
+                key={`${r}-${c}`}
+                type="button"
+                disabled={isWall}
+                onClick={() => tryMove(r, c)}
+                style={{
+                  minHeight: '58px',
+                  padding: '6px 4px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: isWall
+                    ? '#030508'
+                    : isDrone
+                    ? 'rgba(16, 185, 129, 0.2)'
+                    : isCompletedNode
+                    ? 'rgba(16, 185, 129, 0.08)'
+                    : isTerminalNode
+                    ? 'var(--panel-3)'
+                    : 'var(--panel-2)',
+                  border: isDrone
+                    ? '1px solid var(--green)'
+                    : isAdjacent
+                    ? '1px solid rgba(56, 189, 248, 0.35)'
+                    : isTerminalNode
+                    ? '1px solid var(--line-strong)'
+                    : '1px solid var(--line)',
+                  color: isWall ? 'var(--muted)' : 'var(--text-pure)',
+                  cursor: isWall ? 'default' : isAdjacent ? 'pointer' : 'not-allowed',
+                  opacity: isWall ? 0.35 : 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.68rem',
+                  transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
+                }}
+              >
+                <span
                   style={{
-                    minHeight: '56px',
-                    padding: '4px',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: isWall
-                      ? 'rgba(5, 9, 18, 0.96)'
-                      : isDrone
-                      ? 'rgba(16, 185, 129, 0.28)'
-                      : isTrap1 || isTrap2 || isTrap3
-                      ? 'rgba(244, 63, 94, 0.14)'
-                      : 'rgba(19, 36, 66, 0.75)',
-                    border: isDrone
-                      ? '2px solid var(--green)'
-                      : isTrap1 || isTrap2 || isTrap3
-                      ? '1px dashed var(--red)'
-                      : '1px solid var(--line)',
-                    color: '#FFFFFF',
-                    cursor: isWall ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '2px',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.68rem',
+                    fontSize: isDrone ? '1.1rem' : '0.85rem',
+                    color: isCompletedNode ? 'var(--green)' : 'var(--blue-bright)',
                   }}
                 >
-                  <span style={{ fontSize: '1.15rem' }}>{isDrone ? '🤖' : icon}</span>
-                  <span style={{ textAlign: 'center', lineHeight: 1.1 }}>{cellLabel}</span>
-                </button>
-              );
-            })
-          )}
-        </div>
+                  {isDrone ? '🤖' : icon}
+                </span>
+                {cellLabel && (
+                  <span style={{ textAlign: 'center', lineHeight: 1.15, fontWeight: 600 }}>
+                    {cellLabel}
+                  </span>
+                )}
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );
 };
 
 // ============================================================================
-// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Permutación Determinista sin Duplicados)
+// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Sin Señuelos Artificiales)
 // ============================================================================
 const PostOrderSniperGame: React.FC<{
   phase: PhaseResult;
@@ -1392,23 +1173,14 @@ const PostOrderSniperGame: React.FC<{
   const [shotCount, setShotCount] = useState(0);
   const [focusedPlateIdx, setFocusedPlateIdx] = useState(0);
 
-  // Mezclamos determinísticamente usando Fisher-Yates con semilla pseudoaleatoria fija
-  // Esto GARANTIZA una biyección exacta 1-a-1: 0 dianas omitidas y 0 dianas duplicadas.
+  // Permutación determinista Fisher-Yates SOLO con las instrucciones reales del programa (0 señuelos falsos, 0 duplicados)
   const galleryTargets = useMemo(() => {
     const realTargets = instrs.map((ins) => ({
       id: `tac-${ins.index}`,
       orderIndex: ins.index,
       text: ins.text,
-      isDecoy: false,
     }));
-    const decoy = {
-      id: 'tac-decoy',
-      orderIndex: -1,
-      text: 't_pre = a + b (Sin evaluar precedencia *)',
-      isDecoy: true,
-    };
-    const all = [...realTargets, decoy];
-    const shuffled = [...all];
+    const shuffled = [...realTargets];
     let seed = 12345;
     for (let i = shuffled.length - 1; i > 0; i--) {
       seed = (seed * 9301 + 49297) % 233280;
@@ -1417,37 +1189,32 @@ const PostOrderSniperGame: React.FC<{
       shuffled[i] = shuffled[j];
       shuffled[j] = temp;
     }
+    if (shuffled.length > 1 && shuffled[0].orderIndex === 0) {
+      const first = shuffled.shift()!;
+      shuffled.push(first);
+    }
     return shuffled;
   }, [instrs]);
 
   const expectedTarget = instrs[shotCount];
 
-  const handleShootPlate = (plate: { id: string; orderIndex: number; text: string; isDecoy: boolean }) => {
+  const handleShootPlate = (plate: { id: string; orderIndex: number; text: string }) => {
     if (!expectedTarget) return;
 
-    if (!plate.isDecoy && plate.orderIndex === shotCount) {
+    if (plate.orderIndex === shotCount) {
       const next = shotCount + 1;
       setShotCount(next);
       onStepProgress(next);
       if (next >= instrs.length) {
         onWin();
       }
-    } else if (plate.isDecoy) {
-      onMistake({
-        phaseName: 'Código Intermedio TAC (Post-Order Sniper)',
-        stepTitle: `Disparo #${shotCount + 1} de ${instrs.length}`,
-        userAnswer: `Disparaste a la diana señuelo "${plate.text}"`,
-        whatWentWrong:
-          'Esa diana evalúa una suma antes que la multiplicación, violando la estructura del AST generada en la fase sintáctica.',
-        whatShouldBeDone: `Apunta con la mira ⊕ y derriba la diana "${expectedTarget.text}" (instrucción [${shotCount}] del recorrido en postorden).`,
-      });
     } else {
       onMistake({
         phaseName: 'Código Intermedio TAC (Post-Order Sniper)',
-        stepTitle: `Disparo #${shotCount + 1} de ${instrs.length}`,
-        userAnswer: `Disparaste prematuramente a la diana "${plate.text}" (posición [${plate.orderIndex}])`,
-        whatWentWrong: `Intentaste emitir "${plate.text}" antes de haber emitido "${expectedTarget.text}". En código de tres direcciones (TAC), las subexpresiones e inicializaciones previas deben emitirse primero.`,
-        whatShouldBeDone: `Derriba primero la diana "${expectedTarget.text}" (paso [${shotCount}] en postorden).`,
+        stepTitle: `Secuencia de Emisión TAC (#${shotCount + 1} de ${instrs.length})`,
+        userAnswer: `Seleccionaste "${plate.text}" antes de tiempo`,
+        whatWentWrong: `Intentaste emitir "${plate.text}" sin haber emitido antes "${expectedTarget.text}". El generador TAC recorre el AST en postorden, emitiendo primero las asignaciones previas y subexpresiones hojas.`,
+        whatShouldBeDone: `Apunta a la instrucción "${expectedTarget.text}" y pulsa ESPACIO.`,
       });
     }
   };
@@ -1465,7 +1232,6 @@ const PostOrderSniperGame: React.FC<{
     };
   });
 
-  // Escuchador de teclado: Flechas para mover la mira y ESPACIO / ENTER para disparar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1475,7 +1241,13 @@ const PostOrderSniperGame: React.FC<{
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
         setFocusedPlateIdx((i) => (i - 1 + gt.length) % gt.length);
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'd' || e.key === 'D' || e.key === 'Tab') {
+      } else if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowDown' ||
+        e.key === 'd' ||
+        e.key === 'D' ||
+        e.key === 'Tab'
+      ) {
         e.preventDefault();
         setFocusedPlateIdx((i) => (i + 1) % gt.length);
       } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
@@ -1493,8 +1265,7 @@ const PostOrderSniperGame: React.FC<{
   if (!expectedTarget && shotCount < instrs.length) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div
         style={{
           display: 'flex',
@@ -1502,102 +1273,353 @@ const PostOrderSniperGame: React.FC<{
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
-          padding: '8px 14px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
-          fontSize: '0.78rem',
         }}
       >
-        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES TECLADO:
-        </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> Mover Mira Telescópica ⊕
+        <div>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)', fontWeight: 700 }}>
+            🎯 CAMPO DE TIRO POST-ORDER SNIPER — Dianas Derribadas: {shotCount} / {instrs.length}
           </span>
-          <span>
-            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Disparar Diana TAC
-          </span>
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted-light)', margin: '2px 0 0 0' }}>
+            Emite las instrucciones de 3 direcciones en el orden exacto de evaluación postorden del AST.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.74rem', color: 'var(--muted-light)' }}>
+          <span><kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Mover Mira</span>
+          <span><kbd style={kbdStyle}>ESPACIO</kbd> Disparar</span>
         </div>
       </div>
 
       <div
         style={{
-          padding: '16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+          gap: '8px',
+          padding: '12px',
+          backgroundColor: 'var(--panel-inset)',
           borderRadius: 'var(--radius-md)',
-          background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 82%)',
-          border: '1px solid var(--blue-bright)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
+          border: '1px solid var(--line)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-            🎯 CAMPO DE TIRO POST-ORDER SNIPER — Dianas Derribadas: {shotCount} / {instrs.length}
+        {galleryTargets.map((plate, pIdx) => {
+          const alreadyShot = plate.orderIndex < shotCount;
+          const isFocused = focusedPlateIdx === pIdx;
+          return (
+            <button
+              key={plate.id}
+              type="button"
+              disabled={alreadyShot}
+              onClick={() => {
+                setFocusedPlateIdx(pIdx);
+                handleShootPlate(plate);
+              }}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: alreadyShot
+                  ? 'rgba(16, 185, 129, 0.08)'
+                  : isFocused
+                  ? 'var(--panel-3)'
+                  : 'var(--panel-2)',
+                border: alreadyShot
+                  ? '1px solid rgba(16, 185, 129, 0.35)'
+                  : isFocused
+                  ? '1px solid var(--line-focus)'
+                  : '1px solid var(--line)',
+                color: alreadyShot ? 'var(--green)' : 'var(--text-pure)',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 600,
+                fontSize: '0.84rem',
+                cursor: alreadyShot ? 'default' : 'crosshair',
+                opacity: alreadyShot ? 0.55 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
+              }}
+            >
+              <span>
+                {alreadyShot ? '✓' : isFocused ? '⊕' : '🎯'} {plate.text}
+              </span>
+              <span style={{ fontSize: '0.7rem', color: alreadyShot ? 'var(--green)' : 'var(--muted-light)' }}>
+                {alreadyShot ? 'EMITIDA' : 'DISPARAR'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 5. FASE OPTIMIZACIÓN: ⚗️ REACTOR ALGEBRAICO Y BARRIDO DCE (Cálculo Real + Purga)
+// ============================================================================
+interface ReactorChallenge {
+  id: string;
+  stage: 'FOLD' | 'DCE';
+  rawInstr: string;
+  contextHint: string;
+  options: Array<{
+    label: string;
+    isCorrect: boolean;
+    errorExplain: string;
+  }>;
+  correctExplain: string;
+}
+
+const OptimizerDefenseGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const challenges: ReactorChallenge[] = useMemo(
+    () => [
+      {
+        id: 'opt-1',
+        stage: 'FOLD',
+        rawInstr: 't1 = b * 2',
+        contextHint: 'Banco de constantes conocido: a = 5, b = 3',
+        correctExplain:
+          'Al propagar b → 3 y plegar 3 * 2 en tiempo de compilación, la instrucción se reduce a la constante t1 = 6.',
+        options: [
+          { label: 't1 = 5', isCorrect: false, errorExplain: 'Sumaste 3 + 2 en lugar de multiplicar 3 * 2.' },
+          { label: 't1 = 6', isCorrect: true, errorExplain: '' },
+          { label: 't1 = 10', isCorrect: false, errorExplain: 'Usaste el valor de "a" (5) en lugar del valor de "b" (3).' },
+          {
+            label: 'ELIMINAR (DCE) sin evaluar',
+            isCorrect: false,
+            errorExplain:
+              'No puedes eliminar t1 todavía porque la siguiente instrucción (t2 = a + t1) depende de su valor.',
+          },
+        ],
+      },
+      {
+        id: 'opt-2',
+        stage: 'FOLD',
+        rawInstr: 't2 = a + t1',
+        contextHint: 'Banco de constantes actualizado: a = 5, b = 3, t1 = 6',
+        correctExplain: 'Al propagar a → 5 y t1 → 6, la ALU del compilador pliega 5 + 6 = 11.',
+        options: [
+          { label: 't2 = 8', isCorrect: false, errorExplain: 'Sumaste a + b (5 + 3) ignorando que t1 vale 6.' },
+          {
+            label: 't2 = 16',
+            isCorrect: false,
+            errorExplain: 'Evaluaste (5 + 3) * 2 = 16 invirtiendo la precedencia de operadores.',
+          },
+          { label: 't2 = 11', isCorrect: true, errorExplain: '' },
+          { label: 't2 = 30', isCorrect: false, errorExplain: 'Multiplicaste 5 * 6 en lugar de sumar 5 + 6.' },
+        ],
+      },
+      {
+        id: 'opt-3',
+        stage: 'DCE',
+        rawInstr: 'Asignaciones: a = 5, b = 3, t1 = 6, t2 = 11, c = 11',
+        contextHint: 'La instrucción final ya fue propagada a: print 11',
+        correctExplain:
+          'Como print 11 ya usa la constante inmediata y ninguna instrucción posterior lee a, b, t1, t2 ni c, todas son Código Muerto (DCE).',
+        options: [
+          {
+            label: 'CONSERVAR todas en el binario',
+            isCorrect: false,
+            errorExplain:
+              'Conservar asignaciones que nadie vuelve a leer desperdicia registros y ciclos de reloj en la máquina virtual.',
+          },
+          { label: 'PURGAR a, b, t1, t2, c y CONSERVAR print 11', isCorrect: true, errorExplain: '' },
+          {
+            label: 'PURGAR todo incluyendo print 11',
+            isCorrect: false,
+            errorExplain: '¡Prohibido eliminar print 11! Tiene un efecto observable de salida por consola.',
+          },
+          {
+            label: 'CONSERVAR solo t1 = 6 y t2 = 11',
+            isCorrect: false,
+            errorExplain: 'Los temporales t1 y t2 tampoco vuelven a leerse una vez que su valor se propagó a print 11.',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const [stepIdx, setStepIdx] = useState(0);
+  const [focusedOpt, setFocusedOpt] = useState(0);
+  const current = challenges[stepIdx];
+
+  const handleSelectOption = (optIndex: number) => {
+    if (!current) return;
+    const chosen = current.options[optIndex];
+    if (!chosen) return;
+
+    if (chosen.isCorrect) {
+      const next = stepIdx + 1;
+      setStepIdx(next);
+      setFocusedOpt(0);
+      onStepProgress(next);
+      if (next >= challenges.length) {
+        onWin();
+      }
+    } else {
+      onMistake({
+        phaseName: 'Optimización TAC (Reactor Algebraico y DCE)',
+        stepTitle: `Transformación de [${current.rawInstr}]`,
+        userAnswer: `Elegiste: "${chosen.label}"`,
+        whatWentWrong: chosen.errorExplain,
+        whatShouldBeDone: current.correctExplain,
+      });
+    }
+  };
+
+  const latestOptRef = useRef({ focusedOpt, current, handleSelectOption });
+  useEffect(() => {
+    latestOptRef.current = { focusedOpt, current, handleSelectOption };
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { focusedOpt: fo, current: cur, handleSelectOption: hso } = latestOptRef.current;
+      if (!cur) return;
+
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const idx = parseInt(e.key, 10) - 1;
+        setFocusedOpt(idx);
+        hso(idx);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setFocusedOpt((i) => (i - 1 + cur.options.length) % cur.options.length);
+      } else if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowDown' ||
+        e.key === 'd' ||
+        e.key === 'D' ||
+        e.key === 'Tab'
+      ) {
+        e.preventDefault();
+        setFocusedOpt((i) => (i + 1) % cur.options.length);
+      } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        hso(fo);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  if (!current) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
+        <div>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)', fontWeight: 700 }}>
+            ⚗️ REACTOR DE OPTIMIZACIÓN (TOWER DEFENSE DEL OPTIMIZADOR) — Paso {stepIdx + 1} de {challenges.length}
           </span>
-          <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-            Derriba todas las dianas de la galería en el orden exacto de emisión TAC (postorden)
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted-light)', margin: '2px 0 0 0' }}>
+            Calcula el plegado exacto de constantes y decide qué instrucciones sobreviven al barrido de código muerto ({phase.summary}).
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '0.74rem', color: 'var(--muted-light)' }}>
+          <span><kbd style={kbdStyle}>1-4</kbd> o <kbd style={kbdStyle}>▲</kbd><kbd style={kbdStyle}>▼</kbd> Elegir</span>
+          <span><kbd style={kbdStyle}>ESPACIO</kbd> Aplicar</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: '14px',
+          borderRadius: 'var(--radius-md)',
+          backgroundColor: 'var(--panel-inset)',
+          border: '1px solid var(--line)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--panel-2)',
+            border: '1px solid var(--line-strong)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '0.72rem', color: 'var(--blue-bright)', display: 'block' }}>
+              {current.stage === 'FOLD'
+                ? 'ETAPA: PROPAGACIÓN Y PLEGADO ARITMÉTICO'
+                : 'ETAPA: BARRIDO DE CÓDIGO MUERTO (DCE)'}
+            </span>
+            <strong style={{ fontSize: '0.95rem', color: 'var(--text-pure)' }}>
+              {current.rawInstr}
+            </strong>
+          </div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--muted-light)' }}>
+            {current.contextHint}
           </span>
         </div>
 
-        {/* Galería con todas las dianas simultáneas */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
-            gap: '10px',
-            padding: '12px',
-            backgroundColor: 'rgba(6, 11, 23, 0.8)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--line)',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
+            gap: '8px',
           }}
         >
-          {galleryTargets.map((plate, pIdx) => {
-            const alreadyShot = !plate.isDecoy && plate.orderIndex < shotCount;
-            const isFocused = focusedPlateIdx === pIdx;
+          {current.options.map((opt, idx) => {
+            const isFocused = focusedOpt === idx;
             return (
               <button
-                key={plate.id}
+                key={opt.label}
                 type="button"
-                disabled={alreadyShot}
                 onClick={() => {
-                  setFocusedPlateIdx(pIdx);
-                  handleShootPlate(plate);
+                  setFocusedOpt(idx);
+                  handleSelectOption(idx);
                 }}
                 style={{
-                  padding: '14px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: alreadyShot
-                    ? 'rgba(16, 185, 129, 0.15)'
-                    : isFocused
-                    ? 'rgba(56, 189, 248, 0.28)'
-                    : 'rgba(15, 23, 42, 0.92)',
-                  border: alreadyShot
-                    ? '1px solid var(--green)'
-                    : isFocused
-                    ? '2px solid #38BDF8'
-                    : '1px solid var(--line-strong)',
-                  color: alreadyShot ? 'var(--green)' : '#FFFFFF',
+                  padding: '12px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: isFocused ? 'var(--panel-3)' : 'var(--panel-2)',
+                  border: isFocused ? '1px solid var(--line-focus)' : '1px solid var(--line)',
+                  color: 'var(--text-pure)',
                   fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  fontSize: '0.88rem',
-                  cursor: alreadyShot ? 'default' : 'crosshair',
-                  opacity: alreadyShot ? 0.65 : 1,
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'space-between',
+                  alignItems: 'center',
                   gap: '8px',
-                  boxShadow: isFocused ? '0 0 16px rgba(56, 189, 248, 0.5)' : 'none',
+                  transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
                 }}
               >
-                <span>
-                  {alreadyShot ? '💥' : isFocused ? '⊕' : '🎯'} {plate.text}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: alreadyShot ? 'var(--green)' : 'var(--blue-bright)' }}>
-                  {alreadyShot ? 'EMITIDA' : isFocused ? '⊕ [ESPACIO]' : 'DISPARAR'}
-                </span>
+                <span>{opt.label}</span>
+                <kbd style={kbdStyle}>{idx + 1}</kbd>
               </button>
             );
           })}
@@ -1608,252 +1630,7 @@ const PostOrderSniperGame: React.FC<{
 };
 
 // ============================================================================
-// 5. FASE OPTIMIZACIÓN: 🛡️ OPTIMIZER TOWER DEFENSE (Cinta y Torretas)
-// ============================================================================
-const OptimizerDefenseGame: React.FC<{
-  phase: PhaseResult;
-  onWin: () => void;
-  onMistake: (f: GameMistakeFeedback) => void;
-  onStepProgress: (idx: number) => void;
-}> = ({ phase, onWin, onMistake, onStepProgress }) => {
-  const waves = [
-    {
-      id: 'wave-prop',
-      packet: 't1 = b * 2   |   t2 = a + t1   (con a=5, b=3)',
-      transformed: 't1 = 3 * 2   |   t2 = 5 + t1',
-      title: 'Paquete #1 en Cinta: Variables con Constantes Conocidas',
-      expectedTurret: 'PROP',
-      explain:
-        'Activa primero la Torreta Propagadora (Azul) para sustituir las variables por sus valores constantes conocidos (a → 5, b → 3).',
-    },
-    {
-      id: 'wave-fold',
-      packet: 't1 = 3 * 2   |   t2 = 5 + 6',
-      transformed: 't1 = 6   |   t2 = 11   |   print 11',
-      title: 'Paquete #2 en Cinta: Expresiones entre Constantes Puras',
-      expectedTurret: 'FOLD',
-      explain:
-        'Dispara la Torreta Plegadora (Constant Folding) para calcular 3 * 2 = 6 y 5 + 6 = 11 en tiempo de compilación.',
-    },
-    {
-      id: 'wave-dce',
-      packet: 'a = 5, b = 3, t1 = 6, t2 = 11, c = 11 (Asignaciones sin lecturas futuras)',
-      transformed: 'Sobrevive únicamente: print 11',
-      title: 'Paquete #3 en Cinta: Temporales y Asignaciones Muertas',
-      expectedTurret: 'DCE',
-      explain:
-        'Dispara el Láser Destructor DCE (Rojo) para desintegrar las instrucciones muertas antes de que consuman ciclos en la CPU.',
-    },
-  ];
-
-  const [waveIdx, setWaveIdx] = useState(0);
-  const currentWave = waves[waveIdx];
-
-  const handleFireTurret = (turret: 'PROP' | 'FOLD' | 'DCE', turretName: string) => {
-    if (!currentWave) return;
-    if (turret === currentWave.expectedTurret) {
-      const next = waveIdx + 1;
-      setWaveIdx(next);
-      onStepProgress(next);
-      if (next >= waves.length) {
-        onWin();
-      }
-    } else {
-      onMistake({
-        phaseName: 'Optimización (Optimizer Tower Defense)',
-        stepTitle: currentWave.title,
-        userAnswer: `Disparaste ${turretName} contra el paquete [${currentWave.packet}]`,
-        whatWentWrong: `Activaste la torreta incorrecta sobre la cinta transportadora. Si destruyes código antes de propagar o intentas plegar variables sin reemplazarlas antes, corrompes el programa.`,
-        whatShouldBeDone: currentWave.explain,
-      });
-    }
-  };
-
-  const latestDefenseRef = useRef({
-    handleFireTurret,
-  });
-  useEffect(() => {
-    latestDefenseRef.current = {
-      handleFireTurret,
-    };
-  });
-
-  // Escuchador de teclado: teclas 1, 2, 3 para disparar las torretas
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const { handleFireTurret: hf } = latestDefenseRef.current;
-
-      if (e.key === '1') {
-        e.preventDefault();
-        hf('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes');
-      } else if (e.key === '2') {
-        e.preventDefault();
-        hf('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)');
-      } else if (e.key === '3') {
-        e.preventDefault();
-        hf('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  if (!currentWave) return null;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '8px',
-          padding: '8px 14px',
-          borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(16, 185, 129, 0.4)',
-          fontSize: '0.78rem',
-        }}
-      >
-        <span style={{ color: 'var(--green)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES TECLADO:
-        </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>1</kbd> Torreta Propagación
-          </span>
-          <span>
-            <kbd style={kbdStyle}>2</kbd> Prensa Plegado (Folding)
-          </span>
-          <span>
-            <kbd style={kbdStyle}>3</kbd> Láser Destructor DCE
-          </span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          padding: '16px',
-          borderRadius: 'var(--radius-md)',
-          background: 'rgba(10, 20, 38, 0.92)',
-          border: '1px solid var(--green)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
-            🛡️ TOWER DEFENSE DEL OPTIMIZADOR — Oleada {waveIdx + 1} de {waves.length} ({phase.summary})
-          </span>
-        </div>
-
-        {/* Carril de Cinta Transportadora */}
-        <div
-          style={{
-            padding: '14px 16px',
-            borderRadius: 'var(--radius-sm)',
-            backgroundColor: 'rgba(6, 11, 23, 0.88)',
-            border: '1px dashed var(--blue-bright)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.76rem', color: 'var(--blue-bright)' }}>
-              {currentWave.title}
-            </span>
-            <Chip label="➔ Cinta hacia 🧠 Núcleo CPU" variant="cyan" />
-          </div>
-          <strong style={{ color: '#FFFFFF', fontSize: '0.96rem' }}>
-            📦 En cinta: {currentWave.packet}
-          </strong>
-        </div>
-
-        {/* 3 Torretas Defensivas sobre la Cinta */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
-            gap: '10px',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleFireTurret('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(37, 99, 235, 0.2)',
-              border: '2px solid var(--blue-bright)',
-              color: '#FFFFFF',
-              fontWeight: 700,
-              cursor: 'pointer',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-            }}
-          >
-            <span>🔵 Torreta 1: Rayo Propagador</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 1 o Clic]</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleFireTurret('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(16, 185, 129, 0.2)',
-              border: '2px solid var(--green)',
-              color: '#FFFFFF',
-              fontWeight: 700,
-              cursor: 'pointer',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-            }}
-          >
-            <span>🟢 Torreta 2: Prensa Folding</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 2 o Clic]</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleFireTurret('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(244, 63, 94, 0.18)',
-              border: '2px solid var(--red)',
-              color: '#FFFFFF',
-              fontWeight: 700,
-              cursor: 'pointer',
-              textAlign: 'left',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-            }}
-          >
-            <span>🔴 Torreta 3: Láser DCE</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 3 o Clic]</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// 6. FASE ENSAMBLADOR: ⚡ REGISTER SWITCHBOARD (Conectar Chips R0-R7 y Compuertas)
+// 6. FASE ENSAMBLADOR: ⚡ REGISTER SWITCHBOARD (Sin Auto-Selección ni Spoilers)
 // ============================================================================
 const ISA_OPCODES = ['LOADI', 'LOAD', 'STORE', 'ADD', 'SUB', 'MUL', 'NEG', 'PRINT', 'HALT'];
 
@@ -1870,6 +1647,9 @@ const RegisterSwitchboardGame: React.FC<{
 
   const [pcIdx, setPcIdx] = useState(0);
   const [focusedOpcodeIdx, setFocusedOpcodeIdx] = useState(0);
+  // NUNCA auto-seleccionamos el registro esperado: el jugador debe elegirlo manualmente
+  const [selectedReg, setSelectedReg] = useState<number | null>(null);
+
   const currentIns = instrs[pcIdx];
 
   const expectedOpcode = useMemo(() => {
@@ -1883,36 +1663,58 @@ const RegisterSwitchboardGame: React.FC<{
     return match ? parseInt(match[1], 10) : null;
   }, [currentIns]);
 
-  const [selectedReg, setSelectedReg] = useState<number | null>(0);
-
-  useEffect(() => {
-    setSelectedReg(expectedReg);
-  }, [expectedReg]);
+  const microSpec = useMemo(() => {
+    if (!currentIns) return '';
+    const text = currentIns.text;
+    if (text.startsWith('LOADI')) {
+      const parts = text.split(',');
+      const imm = parts[1]?.trim() || 'constante';
+      return `Cargar la constante inmediata (${imm}) en el primer registro de trabajo del procesador (índice 0).`;
+    }
+    if (text.startsWith('PRINT')) {
+      return `Enviar al puerto de salida estándar el valor actualmente alojado en el registro acumulador R0.`;
+    }
+    if (text.startsWith('HALT')) {
+      return `Detener el ciclo de reloj de la máquina virtual (instrucción de control sin operandos de registro).`;
+    }
+    return `Codificar la micro-operación correspondiente al ciclo PC=${currentIns.pc}.`;
+  }, [currentIns]);
 
   const handleActivateOpcodeGate = (opcodeClicked: string) => {
     if (!currentIns) return;
 
-    if (opcodeClicked !== expectedOpcode) {
+    if (expectedReg !== null && selectedReg !== expectedReg) {
       onMistake({
         phaseName: 'Ensamblador ISA (Register Switchboard)',
-        stepTitle: `Ciclo de Reloj PC=${currentIns.pc} (Objetivo: ${currentIns.text})`,
-        userAnswer: `Activaste la compuerta lógica [${opcodeClicked}]`,
-        whatWentWrong:
-          opcodeClicked === 'LOAD' && expectedOpcode === 'LOADI'
-            ? 'Activaste LOAD (lectura de celda de memoria RAM) cuando necesitabas cargar un número constante inmediato con LOADI.'
-            : `La compuerta [${opcodeClicked}] no corresponde a la instrucción de máquina requerida en PC=${currentIns.pc} (${currentIns.text}).`,
-        whatShouldBeDone: `Conecta el registro ${expectedReg !== null ? `R${expectedReg}` : 'del sistema'} y pulsa la compuerta [${expectedOpcode}] para emitir "${currentIns.text}".`,
+        stepTitle: `Banco de Registros en Ciclo PC=${currentIns.pc}`,
+        userAnswer: `Intentaste despachar [${opcodeClicked}] con el registro [${selectedReg !== null ? `R${selectedReg}` : 'SIN REGISTRO'}] seleccionado`,
+        whatWentWrong: `Esta operación requiere direccionar el registro R${expectedReg}, pero tienes seleccionado ${selectedReg !== null ? `R${selectedReg}` : 'ningún registro'}.`,
+        whatShouldBeDone: `Selecciona primero el registro [R${expectedReg}] (con las teclas 0–7 o clic) y luego despacha el opcode correcto.`,
       });
       return;
     }
 
-    if (expectedReg !== null && selectedReg !== expectedReg) {
+    if (expectedReg === null && selectedReg !== null) {
       onMistake({
         phaseName: 'Ensamblador ISA (Register Switchboard)',
-        stepTitle: `Asignación de Registro en PC=${currentIns.pc}`,
-        userAnswer: `Conectaste el cable al chip R${selectedReg ?? 'ninguno'} en vez de R${expectedReg}`,
-        whatWentWrong: `Para la instrucción "${currentIns.text}", el asignador de registros seleccionó R${expectedReg}, pero tu cable apunta a R${selectedReg}.`,
-        whatShouldBeDone: `Haz clic primero en el chip [🔌 R${expectedReg}] del banco de registros y luego acciona la compuerta [${expectedOpcode}].`,
+        stepTitle: `Instrucción sin Registro en Ciclo PC=${currentIns.pc}`,
+        userAnswer: `Dejaste activo el registro R${selectedReg} para una instrucción de parada del sistema`,
+        whatWentWrong: `La instrucción de cierre del procesador no recibe registros de datos (los bytes dst y src van en 0x00).`,
+        whatShouldBeDone: `Selecciona [SIN REG] y despacha el opcode de detención del procesador.`,
+      });
+      return;
+    }
+
+    if (opcodeClicked !== expectedOpcode) {
+      onMistake({
+        phaseName: 'Ensamblador ISA (Register Switchboard)',
+        stepTitle: `Selección de Opcode ISA en PC=${currentIns.pc}`,
+        userAnswer: `Despachaste el opcode [${opcodeClicked}]`,
+        whatWentWrong:
+          opcodeClicked === 'LOAD' && expectedOpcode === 'LOADI'
+            ? 'LOAD lee una dirección de memoria RAM, pero aquí necesitas cargar un valor numérico inmediato (LOADI).'
+            : `El opcode [${opcodeClicked}] no cumple la especificación de la micro-operación actual.`,
+        whatShouldBeDone: `Selecciona el opcode [${expectedOpcode}] para cumplir con la especificación del ciclo PC=${currentIns.pc}.`,
       });
       return;
     }
@@ -1938,7 +1740,6 @@ const RegisterSwitchboardGame: React.FC<{
     };
   });
 
-  // Escuchador de teclado: Flechas ◀ / ▶ o teclas 0-7 para registros, ▲ / ▼ para opcode y ESPACIO / ENTER para emitir
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1947,16 +1748,13 @@ const RegisterSwitchboardGame: React.FC<{
       if (['0', '1', '2', '3', '4', '5', '6', '7'].includes(e.key)) {
         e.preventDefault();
         setSelectedReg(parseInt(e.key, 10));
+      } else if (e.key === 'x' || e.key === 'X' || e.key === 'Backspace') {
+        e.preventDefault();
+        setSelectedReg(null);
       } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        setSelectedReg((r) => ((r ?? 0) - 1 + 8) % 8);
-      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        e.preventDefault();
-        setSelectedReg((r) => ((r ?? 0) + 1) % 8);
-      } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        e.preventDefault();
         setFocusedOpcodeIdx((i) => (i - 1 + ISA_OPCODES.length) % ISA_OPCODES.length);
-      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S' || e.key === 'Tab') {
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'Tab') {
         e.preventDefault();
         setFocusedOpcodeIdx((i) => (i + 1) % ISA_OPCODES.length);
       } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
@@ -1972,8 +1770,7 @@ const RegisterSwitchboardGame: React.FC<{
   if (!currentIns) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Barra HUD de controles interactivos con el teclado */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div
         style={{
           display: 'flex',
@@ -1981,56 +1778,55 @@ const RegisterSwitchboardGame: React.FC<{
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '8px',
-          padding: '8px 14px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--panel-2)',
+          border: '1px solid var(--line)',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '1px solid rgba(56, 189, 248, 0.4)',
-          fontSize: '0.78rem',
         }}
       >
-        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
-          🎮 CONTROLES TECLADO:
-        </span>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span>
-            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>0-7</kbd> Cablear Chip R0–R7
+        <div>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text-pure)', fontWeight: 700 }}>
+            ⚡ DESPACHADOR ISA Y BANCO DE REGISTROS — Ciclo PC={currentIns.pc} ({pcIdx + 1}/{instrs.length})
           </span>
-          <span>
-            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> Seleccionar Opcode
-          </span>
-          <span>
-            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Emitir Ciclo
-          </span>
+          <p style={{ fontSize: '0.75rem', color: 'var(--muted-light)', margin: '2px 0 0 0' }}>
+            1° Asigna el registro de trabajo (<kbd style={kbdStyle}>0-7</kbd> o <kbd style={kbdStyle}>X</kbd> sin registro) &bull; 2° Despacha el Opcode (<kbd style={kbdStyle}>◀</kbd><kbd style={kbdStyle}>▶</kbd> + <kbd style={kbdStyle}>ESPACIO</kbd>).
+          </p>
         </div>
       </div>
 
       <div
         style={{
-          padding: '16px',
+          padding: '14px',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(10, 20, 38, 0.92)',
-          border: '1px solid var(--blue-bright)',
+          backgroundColor: 'var(--panel-inset)',
+          border: '1px solid var(--line)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '14px',
+          gap: '12px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-            ⚡ TABLERO ELECTRÓNICO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc}: Armar [{currentIns.text}]
+        <div
+          style={{
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'var(--panel-2)',
+            border: '1px solid var(--line-strong)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.82rem',
+            color: 'var(--text-pure)',
+          }}
+        >
+          <span style={{ color: 'var(--blue-bright)', fontSize: '0.72rem', display: 'block', marginBottom: '2px' }}>
+            ESPECIFICACIÓN DE MICRO-OPERACIÓN (PC={currentIns.pc}):
           </span>
-          <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-            1° Conecta el Chip R0–R7 &bull; 2° Pulsa la Compuerta Opcode ISA
-          </span>
+          {microSpec}
         </div>
 
-        {/* Banco interactivo de los 8 chips de registros R0..R7 */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(8, minmax(56px, 1fr))',
-            gap: '8px',
-            overflowX: 'auto',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(64px, 1fr))',
+            gap: '6px',
           }}
         >
           {[0, 1, 2, 3, 4, 5, 6, 7].map((r) => {
@@ -2041,35 +1837,50 @@ const RegisterSwitchboardGame: React.FC<{
                 type="button"
                 onClick={() => setSelectedReg(r)}
                 style={{
-                  padding: '10px 6px',
-                  borderRadius: '6px',
+                  padding: '8px 6px',
+                  borderRadius: 'var(--radius-sm)',
                   textAlign: 'center',
                   fontFamily: 'var(--font-mono)',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  backgroundColor: isWired ? 'rgba(16, 185, 129, 0.28)' : 'rgba(15, 23, 42, 0.75)',
-                  border: isWired ? '2px solid var(--green)' : '1px solid var(--line)',
-                  color: isWired ? '#FFFFFF' : 'var(--muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  backgroundColor: isWired ? 'var(--panel-3)' : 'var(--panel-2)',
+                  border: isWired ? '1px solid var(--green)' : '1px solid var(--line)',
+                  color: isWired ? 'var(--green-bright)' : 'var(--muted-light)',
                   cursor: 'pointer',
-                  boxShadow: isWired ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none',
                 }}
               >
-                🔌 R{r}
+                R{r}
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setSelectedReg(null)}
+            style={{
+              padding: '8px 6px',
+              borderRadius: 'var(--radius-sm)',
+              textAlign: 'center',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              backgroundColor: selectedReg === null ? 'var(--panel-3)' : 'var(--panel-2)',
+              border: selectedReg === null ? '1px solid var(--blue-bright)' : '1px solid var(--line)',
+              color: selectedReg === null ? 'var(--blue-bright)' : 'var(--muted-light)',
+              cursor: 'pointer',
+            }}
+          >
+            SIN REG
+          </button>
         </div>
 
-        {/* Panel de las 9 Compuertas de Opcode ISA */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))',
             gap: '8px',
           }}
         >
           {ISA_OPCODES.map((op, oIdx) => {
-            const isTarget = op === expectedOpcode;
             const isFocused = focusedOpcodeIdx === oIdx;
             return (
               <button
@@ -2082,25 +1893,20 @@ const RegisterSwitchboardGame: React.FC<{
                 style={{
                   padding: '10px 12px',
                   borderRadius: 'var(--radius-sm)',
-                  backgroundColor: isFocused
-                    ? 'rgba(56, 189, 248, 0.35)'
-                    : isTarget
-                    ? 'rgba(37, 99, 235, 0.25)'
-                    : 'rgba(15, 23, 42, 0.85)',
-                  border: isFocused
-                    ? '2px solid #38BDF8'
-                    : isTarget
-                    ? '2px solid var(--blue-bright)'
-                    : '1px solid var(--line-strong)',
-                  color: '#FFFFFF',
+                  backgroundColor: isFocused ? 'var(--panel-3)' : 'var(--panel-2)',
+                  border: isFocused ? '1px solid var(--line-focus)' : '1px solid var(--line)',
+                  color: 'var(--text-pure)',
                   fontFamily: 'var(--font-mono)',
-                  fontWeight: 700,
-                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
                   cursor: 'pointer',
-                  boxShadow: isFocused ? '0 0 14px rgba(56, 189, 248, 0.5)' : 'none',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                ⚡ {op} {isFocused ? '◀' : ''}
+                <span>{op}</span>
+                {isFocused && <span style={{ color: 'var(--blue-bright)', fontSize: '0.7rem' }}>⏎</span>}
               </button>
             );
           })}
@@ -2130,7 +1936,6 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
     setFeedbackModal(null);
   }, [phase.id]);
 
-  // La fase 7 (binary) NO lleva mini-juego
   if (phase.id === 'binary') {
     return null;
   }
@@ -2154,42 +1959,53 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '14px',
-        padding: '18px',
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(37, 99, 235, 0.12))',
-        border: '1px solid rgba(16, 185, 129, 0.4)',
+        gap: '12px',
+        padding: '16px',
+        backgroundColor: 'var(--panel)',
+        border: '1px solid var(--line)',
         borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-md)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '10px',
+          paddingBottom: '10px',
+          borderBottom: '1px solid var(--line)',
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <Chip label="🕹️ MODO ARCADE HERO" variant="green" />
-          <strong style={{ color: 'var(--text-pure)', fontSize: '1rem' }}>
+          <Chip label="SIMULACIÓN ACTIVA" variant="green" />
+          <strong style={{ color: 'var(--text-pure)', fontSize: '0.95rem', fontWeight: 600 }}>
             {phase.name}
           </strong>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontFamily: 'var(--font-mono)' }}>
           <span
             style={{
-              fontSize: '0.8rem',
-              fontFamily: 'var(--font-mono)',
+              fontSize: '0.75rem',
               color: 'var(--blue-bright)',
-              padding: '4px 10px',
-              backgroundColor: 'rgba(37, 99, 235, 0.15)',
-              borderRadius: '999px',
+              padding: '3px 8px',
+              backgroundColor: 'var(--panel-2)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-sm)',
             }}
           >
             Progreso: {stepsDone}
           </span>
           <span
             style={{
-              fontSize: '0.8rem',
-              fontFamily: 'var(--font-mono)',
-              color: mistakesCount === 0 ? 'var(--green)' : 'var(--amber)',
-              padding: '4px 10px',
-              backgroundColor: 'rgba(15, 23, 42, 0.6)',
-              borderRadius: '999px',
+              fontSize: '0.75rem',
+              color: mistakesCount === 0 ? 'var(--muted-light)' : 'var(--red)',
+              padding: '3px 8px',
+              backgroundColor: 'var(--panel-2)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-sm)',
             }}
           >
             Fallos: {mistakesCount}
@@ -2208,7 +2024,7 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
             />
           )}
           {phase.id === 'syntactic' && (
-            <CircuitPrecedenceHackerGame
+            <AstCraneGame
               phase={phase}
               onWin={() => setPhaseCompleted(true)}
               onMistake={handleMistake}
@@ -2251,9 +2067,9 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
       ) : (
         <div
           style={{
-            padding: '18px',
-            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid var(--green)',
+            padding: '16px',
+            backgroundColor: 'var(--green-subtle)',
+            border: '1px solid rgba(16, 185, 129, 0.35)',
             borderRadius: 'var(--radius-md)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -2263,20 +2079,20 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
           }}
         >
           <div>
-            <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              🏆 ¡Misión Arcade de {phase.name} Superada!
+            <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-pure)', margin: 0 }}>
+              Fase Completada — {phase.name}
             </h4>
-            <p style={{ fontSize: '0.88rem', color: 'var(--text)', margin: '4px 0 0 0' }}>
-              Completaste todos los procesos internos del compilador en esta fase ({mistakesCount} fallos).
+            <p style={{ fontSize: '0.82rem', color: 'var(--text)', margin: '4px 0 0 0' }}>
+              Verificaste todos los pasos internos de esta etapa ({mistakesCount} fallos registrados).
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="secondary" size="sm" onClick={() => setPhaseCompleted(false)}>
-              Jugar de nuevo
+              Repetir fase
             </Button>
             {onCompletePhase && (
               <Button variant="primary" size="sm" onClick={onCompletePhase}>
-                Avanzar a la Siguiente Fase →
+                Siguiente Fase →
               </Button>
             )}
           </div>

@@ -56,12 +56,11 @@ export const PhasePlayer: React.FC<PhasePlayerProps> = ({ totalSteps, phaseName 
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
-        padding: '16px 20px',
-        backgroundColor: 'var(--panel-solid)',
-        border: '1px solid var(--line-strong)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)',
+        gap: '10px',
+        padding: '12px 16px',
+        backgroundColor: 'var(--panel)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--radius-md)',
       }}
     >
       {/* Barra de progreso e indicador de pasos */}

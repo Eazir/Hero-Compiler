@@ -99,58 +99,9 @@ export const EditorScreen: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <header>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)' }}>
-          {es.app.nav.editor}
-        </h2>
-        <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-          Diseña tu programa con bloques interactivos, transforma expresiones o edita código libremente antes de entrar a los mini-juegos de compilación.
-        </p>
-      </header>
-
-      {/* Selector de Misiones Predefinidas de Hero-Compiler */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
-          gap: '10px',
-        }}
-      >
-        {HERO_MISSIONS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => {
-              setWarningMessage(null);
-              loadMission(m.id);
-            }}
-            style={{
-              textAlign: 'left',
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(15, 29, 54, 0.75)',
-              border: '1px solid var(--line)',
-              color: 'var(--text-pure)',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <strong style={{ fontSize: '0.85rem', color: 'var(--green)' }}>
-              🎯 {m.title}
-            </strong>
-            <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
-              {m.desc}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Barra de control y conteo de fragmentos */}
-      <div
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra superior integrada del Editor: Título + Contadores + Acciones */}
+      <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -159,9 +110,14 @@ export const EditorScreen: React.FC = () => {
           gap: '12px',
         }}
       >
-        <FragmentCounter fragments={fragmentCount} lines={lineCount} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-pure)', letterSpacing: '-0.02em' }}>
+            {es.app.nav.editor}
+          </h2>
+          <FragmentCounter fragments={fragmentCount} lines={lineCount} />
+        </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant="secondary"
             size="sm"
@@ -178,6 +134,46 @@ export const EditorScreen: React.FC = () => {
             {es.app.actions.clear}
           </Button>
         </div>
+      </header>
+
+      {/* Selector compacto de Misiones Predefinidas */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
+          gap: '8px',
+        }}
+      >
+        {HERO_MISSIONS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => {
+              setWarningMessage(null);
+              loadMission(m.id);
+            }}
+            style={{
+              textAlign: 'left',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--panel)',
+              border: '1px solid var(--line)',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              transition: 'border-color var(--motion-fast), background-color var(--motion-fast)',
+            }}
+          >
+            <strong style={{ fontSize: '0.78rem', color: 'var(--text-pure)', fontWeight: 600 }}>
+              {m.title}
+            </strong>
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              {m.desc}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Alerta de rechazo de límite (criterio: fragmento 13 rechazado con motivo visible) */}

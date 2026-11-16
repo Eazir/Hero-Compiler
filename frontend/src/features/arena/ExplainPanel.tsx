@@ -36,14 +36,13 @@ export const ExplainPanel: React.FC<ExplainPanelProps> = ({ step, stepIndex, tot
       aria-live="polite"
       aria-atomic="true"
       style={{
-        padding: '18px 22px',
-        backgroundColor: 'var(--panel-solid)',
-        border: '1px solid var(--line-strong)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)',
+        padding: '14px 16px',
+        backgroundColor: 'var(--panel)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--radius-md)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '8px',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>

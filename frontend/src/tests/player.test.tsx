@@ -218,7 +218,7 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
     expect(screen.getByText(/Llaves en Tabla: \[a\]/i)).toBeInTheDocument();
   });
 
-  test('Circuit Precedence Hacker (Fase 2) renderiza compuertas lógicas y previene inversiones de precedencia', () => {
+  test('AST Crane Builder (Fase 2) renderiza la grúa mecánica y previene izar la raíz antes que los hijos', () => {
     usePlayerStore.setState({ activePhase: 'syntactic', stepIndex: 0 });
 
     render(
@@ -227,17 +227,17 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
       </BrowserRouter>
     );
 
-    expect(screen.getByText(/CIRCUIT PRECEDENCE HACKER/i)).toBeInTheDocument();
+    expect(screen.getByText(/GRÚA MECÁNICA AST/i)).toBeInTheDocument();
 
-    // Intentar conectar la compuerta raíz Stmt antes de conectar el valor factor dispara error de precedencia
-    const rootGateBtn = screen.getByRole('button', { name: /Compuerta Raíz Stmt/i });
-    fireEvent.click(rootGateBtn);
+    // Intentar izar el Nodo Raíz [a = ...] antes de la Hoja Terminal [5] dispara error de jerarquía AST
+    const rootCrateBtn = screen.getByRole('button', { name: /Nodo Raíz/i });
+    fireEvent.click(rootCrateBtn);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText(/Error de Canalización/i)).toBeInTheDocument();
+    expect(screen.getByText(/Error de Jerarquía AST/i)).toBeInTheDocument();
   });
 
-  test('Post-Order Sniper (Fase 4) no tiene dianas duplicadas y permite derribar en orden TAC', () => {
+  test('Post-Order Sniper (Fase 4) no tiene dianas duplicadas ni el señuelo t_pre y permite derribar en orden TAC', () => {
     usePlayerStore.setState({ activePhase: 'ir', stepIndex: 0 });
 
     render(
@@ -245,6 +245,9 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
         <ArenaScreen />
       </BrowserRouter>
     );
+
+    // Verificamos que el señuelo falso de la imagen 1 fue eliminado por completo
+    expect(screen.queryByText(/t_pre/i)).not.toBeInTheDocument();
 
     // Verificamos que la diana del paso 0 está presente en la galería
     const allButtons = screen.getAllByRole('button');
@@ -260,5 +263,29 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
       fireEvent.click(firstTargetBtn);
       expect(screen.getByText(/Dianas Derribadas: 1/i)).toBeInTheDocument();
     }
+  });
+
+  test('Ensamblador ISA (Fase 6) exige seleccionar manualmente el registro antes de despachar el opcode', () => {
+    usePlayerStore.setState({ activePhase: 'assembly', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    // Si intentamos despachar LOADI sin haber seleccionado R0 (empieza en SIN REG), abre modal de error
+    const loadiBtn = screen.getByRole('button', { name: /^LOADI/i });
+    fireEvent.click(loadiBtn);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Banco de Registros en Ciclo/i)).toBeInTheDocument();
+
+    // Cerramos el modal, seleccionamos R0 manualmente y despachamos LOADI
+    fireEvent.click(screen.getByRole('button', { name: /entendido, corregir paso/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'R0' }));
+    fireEvent.click(screen.getByRole('button', { name: /^LOADI/i }));
+
+    expect(screen.getByText(/Progreso: 1/i)).toBeInTheDocument();
   });
 });

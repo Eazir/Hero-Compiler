@@ -26,73 +26,92 @@ export const App: React.FC = () => {
   };
 
   const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
-    padding: '8px 16px',
-    borderRadius: 'var(--radius-md)',
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-sm)',
     textDecoration: 'none',
-    fontSize: '0.875rem',
-    fontWeight: 600,
+    fontSize: '0.8125rem',
+    fontWeight: isActive ? 600 : 500,
     fontFamily: 'var(--font-ui)',
-    minHeight: '40px',
+    minHeight: '32px',
     display: 'inline-flex',
     alignItems: 'center',
-    color: isActive ? '#FFFFFF' : 'var(--muted)',
-    backgroundColor: isActive ? 'rgba(37, 99, 235, 0.2)' : 'transparent',
-    border: `1px solid ${isActive ? 'rgba(56, 189, 248, 0.4)' : 'transparent'}`,
-    boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.2)' : 'none',
-    transition: 'all var(--motion-fast)',
+    color: isActive ? 'var(--text-pure)' : 'var(--muted-light)',
+    backgroundColor: isActive ? 'var(--panel-2)' : 'transparent',
+    border: `1px solid ${isActive ? 'var(--line-strong)' : 'transparent'}`,
+    transition: 'background-color var(--motion-fast), color var(--motion-fast)',
     whiteSpace: 'nowrap' as const,
   });
 
   return (
     <div
       style={{
-        maxWidth: '1280px',
+        maxWidth: '1360px',
         margin: '0 auto',
-        padding: '16px 20px',
+        padding: '12px 24px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
+        gap: '16px',
         minHeight: '100vh',
         minWidth: 0,
         width: '100%',
       }}
     >
-      {/* Barra superior de navegación y estado */}
+      {/* Barra superior compacta estilo Workbench */}
       <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           borderBottom: '1px solid var(--line)',
-          paddingBottom: '16px',
+          paddingBottom: '12px',
           flexWrap: 'wrap',
-          gap: '14px',
+          gap: '12px',
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-          <div style={{ minWidth: 0 }}>
-            <h1
-              style={{
-                fontSize: '1.75rem',
-                fontWeight: 800,
-                background: 'var(--accent-gradient)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                letterSpacing: '-0.03em',
-                lineHeight: 1.1,
-              }}
-            >
-              {es.app.title}
-            </h1>
-            <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: '2px' }}>{es.app.subtitle}</p>
-          </div>
-          <Chip label="v1.0" variant="cyan" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '2px',
+              backgroundColor: 'var(--green-vibrant)',
+              flexShrink: 0,
+            }}
+          />
+          <h1
+            style={{
+              fontSize: '1rem',
+              fontWeight: 700,
+              color: 'var(--text-pure)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2,
+            }}
+          >
+            {es.app.title}
+          </h1>
+          <span style={{ color: 'var(--line-strong)', fontSize: '0.85rem' }}>/</span>
+          <span style={{ color: 'var(--muted)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}>
+            MiniArit ISA-64
+          </span>
         </div>
 
         {/* Enlaces de navegación entre las 4 pantallas */}
         <nav aria-label="Navegación principal" style={{ minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}>
-          <ul style={{ display: 'flex', gap: '8px', listStyle: 'none', padding: 0, margin: 0, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ul
+            style={{
+              display: 'flex',
+              gap: '4px',
+              listStyle: 'none',
+              padding: '2px',
+              margin: 0,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              backgroundColor: 'var(--panel)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
             <li>
               <NavLink to="/" style={navLinkStyle}>
                 {es.app.nav.editor}

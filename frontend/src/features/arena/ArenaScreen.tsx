@@ -57,8 +57,8 @@ export const ArenaScreen: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, maxWidth: '100%' }}>
-      {/* Encabezado con navegación y selector de Modo Arcade Hero */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0, maxWidth: '100%' }}>
+      {/* Barra de control superior compacta sin ruido visual */}
       <header
         style={{
           display: 'flex',
@@ -68,46 +68,44 @@ export const ArenaScreen: React.FC = () => {
           gap: '12px',
         }}
       >
-        <div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
           <h2
             style={{
-              fontSize: '1.5rem',
-              fontWeight: 700,
+              fontSize: '1.15rem',
+              fontWeight: 600,
               color: 'var(--text-pure)',
               letterSpacing: '-0.02em',
             }}
           >
             {es.app.nav.arena}
           </h2>
-          <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-            {activePhase === 'binary'
-              ? 'Fase 7: Inspecciona el binario de 8 bytes y ejecuta programa.exe en el Escritorio Virtual.'
-              : 'Juega los Mini-Juegos Arcade de cada fase (Navecitas, Conectar Nodos, Laberinto, Sniper, Tower Defense y Registros).'}
-          </p>
+          <span style={{ color: 'var(--muted)', fontSize: '0.8125rem' }}>
+            {currentPhaseData?.summary}
+          </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
           {activePhase !== 'binary' && (
             <Button
               variant={heroGameActive ? 'primary' : 'secondary'}
               size="sm"
               onClick={() => setHeroGameActive((v) => !v)}
             >
-              {heroGameActive ? '🕹️ Arcade Hero Activo' : '🕹️ Activar Arcade Hero'}
+              {heroGameActive ? 'Modo Interactivo Activo' : 'Activar Modo Interactivo'}
             </Button>
           )}
           <Button variant="secondary" size="sm" onClick={() => navigate('/')}>
-            ← Volver al Editor
+            ← Editor
           </Button>
           {trace.ok && (
             <Button variant="primary" size="sm" onClick={() => navigate('/resultado')}>
-              Ver Resultado →
+              Resultado →
             </Button>
           )}
         </div>
       </header>
 
-      {/* Stepper horizontal de las 7 fases */}
+      {/* Stepper horizontal compacto de las 7 fases */}
       <PhaseStepper
         phases={PHASES_META}
         active={activePhase}
@@ -116,127 +114,137 @@ export const ArenaScreen: React.FC = () => {
         onSelectPhase={(phase) => setActivePhase(phase)}
       />
 
-      {/* Mini-Juegos Arcade en las fases 1 a 6 (la fase 7 'binary' NO tiene mini-juego) */}
-      {heroGameActive &&
-        activePhase !== 'binary' &&
-        currentPhaseData &&
-        currentPhaseData.status === 'ok' && (
-          <PhaseMiniGame
-            phase={currentPhaseData}
-            onCompletePhase={handleAdvanceNextPhase}
-            onSyncStepIndex={(idx) => setStepIndex(idx)}
-          />
-        )}
+      {/* Workbench de 2 Columnas: Foco Principal (Izquierda) + Telemetría e Inspector (Derecha) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))',
+          gap: '16px',
+          alignItems: 'start',
+          minWidth: 0,
+        }}
+      >
+        {/* COLUMNA IZQUIERDA (FOCO PRINCIPAL): Laboratorio Interactivo (Fases 1-6) o Escritorio Virtual (Fase 7) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+          {heroGameActive &&
+            activePhase !== 'binary' &&
+            currentPhaseData &&
+            currentPhaseData.status === 'ok' && (
+              <PhaseMiniGame
+                phase={currentPhaseData}
+                onCompletePhase={handleAdvanceNextPhase}
+                onSyncStepIndex={(idx) => setStepIndex(idx)}
+              />
+            )}
 
-      {/* En la Fase 7 (binary): Mostrar directamente el Escritorio Virtual con el binario y el ejecutable */}
-      {activePhase === 'binary' && trace.ok && (
-        <VirtualDesktop trace={trace} defaultConsoleOpen={false} />
-      )}
+          {activePhase === 'binary' && trace.ok && (
+            <VirtualDesktop trace={trace} defaultConsoleOpen={false} />
+          )}
+        </div>
 
-      {/* Reproductor interactivo 1 a 1 de la fase actual */}
-      {currentPhaseData && (
-        <PhasePlayer
-          totalSteps={totalSteps}
-          phaseName={currentPhaseData.name}
-        />
-      )}
-
-      {/* Panel de explicación del paso actual con accesibilidad aria-live="polite" */}
-      <ExplainPanel
-        step={currentStep}
-        stepIndex={stepIndex}
-        totalSteps={totalSteps}
-      />
-
-      {/* Vista interactiva específica según la fase activa */}
-      {currentPhaseData && (
-        <Panel
-          title={`${currentPhaseData.name} — Visualización`}
-          badge={
-            <Chip
-              label={currentPhaseData.status.toUpperCase()}
-              variant={
-                currentPhaseData.status === 'ok'
-                  ? 'green'
-                  : currentPhaseData.status === 'error'
-                  ? 'red'
-                  : 'default'
+        {/* COLUMNA DERECHA (INSPECTOR DE TELEMETRÍA): Estructura del Compilador + Paso a Paso */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
+          {currentPhaseData && (
+            <Panel
+              title={`${currentPhaseData.name} — Inspector`}
+              badge={
+                <Chip
+                  label={currentPhaseData.status.toUpperCase()}
+                  variant={
+                    currentPhaseData.status === 'ok'
+                      ? 'green'
+                      : currentPhaseData.status === 'error'
+                      ? 'red'
+                      : 'default'
+                  }
+                />
               }
-            />
-          }
-        >
-          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '14px' }}>
-            {currentPhaseData.summary}
-          </p>
+            >
+              {/* 1. Vista de Tokens (Léxico) */}
+              {activePhase === 'lexical' && currentPhaseData.output?.tokens && (
+                <TokensView
+                  tokens={currentPhaseData.output.tokens}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
 
-          {/* 1. Vista de Tokens (Léxico) */}
-          {activePhase === 'lexical' && currentPhaseData.output?.tokens && (
-            <TokensView
-              tokens={currentPhaseData.output.tokens}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
+              {/* 2. Vista de AST (Sintáctico) */}
+              {activePhase === 'syntactic' && currentPhaseData.output?.ast && (
+                <AstView
+                  ast={currentPhaseData.output.ast}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+
+              {/* 3. Vista de Tabla de Símbolos (Semántico) */}
+              {activePhase === 'semantic' && currentPhaseData.output && (
+                <SymbolsView
+                  symbols={currentPhaseData.output.symbols || []}
+                  warnings={currentPhaseData.output.warnings || []}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+
+              {/* 4. Vista de Código Intermedio TAC (Fase 4) */}
+              {activePhase === 'ir' && currentPhaseData.output?.instructions && (
+                <IrView
+                  instructions={currentPhaseData.output.instructions}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+
+              {/* 5. Vista de Optimización (Fase 5) */}
+              {activePhase === 'optimization' && currentPhaseData.output?.instructions && (
+                <OptView
+                  instructions={currentPhaseData.output.instructions}
+                  passes={currentPhaseData.output.passes || []}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+
+              {/* 6. Vista de Ensamblador ISA (Fase 6) */}
+              {activePhase === 'assembly' && currentPhaseData.output?.instructions && (
+                <AsmView
+                  instructions={currentPhaseData.output.instructions}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+
+              {/* 7. Vista Hexadecimal de 8 Bytes (Fase 7) */}
+              {activePhase === 'binary' && currentPhaseData.output?.rows && (
+                <HexView
+                  hex={currentPhaseData.output.hex || ''}
+                  size={currentPhaseData.output.size || 0}
+                  rows={currentPhaseData.output.rows}
+                  stepIndex={stepIndex}
+                  steps={currentPhaseData.steps}
+                />
+              )}
+            </Panel>
+          )}
+
+          {/* Reproductor interactivo 1 a 1 de la fase actual */}
+          {currentPhaseData && (
+            <PhasePlayer
+              totalSteps={totalSteps}
+              phaseName={currentPhaseData.name}
             />
           )}
 
-          {/* 2. Vista de AST (Sintáctico) */}
-          {activePhase === 'syntactic' && currentPhaseData.output?.ast && (
-            <AstView
-              ast={currentPhaseData.output.ast}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-
-          {/* 3. Vista de Tabla de Símbolos (Semántico) */}
-          {activePhase === 'semantic' && currentPhaseData.output && (
-            <SymbolsView
-              symbols={currentPhaseData.output.symbols || []}
-              warnings={currentPhaseData.output.warnings || []}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-
-          {/* 4. Vista de Código Intermedio TAC (Fase 4) */}
-          {activePhase === 'ir' && currentPhaseData.output?.instructions && (
-            <IrView
-              instructions={currentPhaseData.output.instructions}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-
-          {/* 5. Vista de Optimización (Fase 5) */}
-          {activePhase === 'optimization' && currentPhaseData.output?.instructions && (
-            <OptView
-              instructions={currentPhaseData.output.instructions}
-              passes={currentPhaseData.output.passes || []}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-
-          {/* 6. Vista de Ensamblador ISA (Fase 6) */}
-          {activePhase === 'assembly' && currentPhaseData.output?.instructions && (
-            <AsmView
-              instructions={currentPhaseData.output.instructions}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-
-          {/* 7. Vista Hexadecimal de 8 Bytes (Fase 7) */}
-          {activePhase === 'binary' && currentPhaseData.output?.rows && (
-            <HexView
-              hex={currentPhaseData.output.hex || ''}
-              size={currentPhaseData.output.size || 0}
-              rows={currentPhaseData.output.rows}
-              stepIndex={stepIndex}
-              steps={currentPhaseData.steps}
-            />
-          )}
-        </Panel>
-      )}
+          {/* Panel de explicación del paso actual con accesibilidad aria-live="polite" */}
+          <ExplainPanel
+            step={currentStep}
+            stepIndex={stepIndex}
+            totalSteps={totalSteps}
+          />
+        </div>
+      </div>
     </div>
   );
 };
