@@ -11,14 +11,14 @@ interface PhaseMiniGameProps {
 }
 
 // ============================================================================
-// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas y Disparos Láser)
+// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas y Disparos en Carriles)
 // ============================================================================
 type LaserCannonType = 'ID' | 'NUM' | 'OP' | 'RES';
 
 interface CannonDef {
   id: LaserCannonType;
   name: string;
-  keyHint: string;
+  shortName: string;
   color: string;
   desc: string;
 }
@@ -27,28 +27,28 @@ const CANNONS: CannonDef[] = [
   {
     id: 'ID',
     name: '⚡ Cañón ID (Identificador de variable)',
-    keyHint: '[1]',
+    shortName: 'CAÑÓN ID',
     color: '#38BDF8',
     desc: 'Variables como a, b, c, x',
   },
   {
     id: 'NUM',
     name: '🟣 Cañón NUM (Constante numérica entera)',
-    keyHint: '[2]',
+    shortName: 'CAÑÓN NUM',
     color: '#818CF8',
     desc: 'Números enteros como 5, 3, 2',
   },
   {
     id: 'OP',
     name: '🟠 Cañón OPERADOR (=, +, -, *, paréntesis)',
-    keyHint: '[3]',
+    shortName: 'CAÑÓN OP',
     color: '#F59E0B',
     desc: 'Símbolos =, +, -, *, (, )',
   },
   {
     id: 'RES',
     name: '🟢 Cañón RESERVADO (print / salto de línea)',
-    keyHint: '[4]',
+    shortName: 'CAÑÓN RES',
     color: '#10B981',
     desc: 'Palabra reservada print y fin de línea',
   },
@@ -74,29 +74,41 @@ const SpaceLexerGame: React.FC<{
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedCannon, setSelectedCannon] = useState<LaserCannonType>('ID');
-  const [shipLane, setShipLane] = useState(1);
+  const [shipLane, setShipLane] = useState(0);
   const [laserShotAnim, setLaserShotAnim] = useState<number | null>(null);
   const [destroyedTokens, setDestroyedTokens] = useState<string[]>([]);
 
   const activeToken = tokens[currentIdx];
-  const targetLane = currentIdx % 4;
+  const targetLane = (currentIdx * 3) % 4;
 
   useEffect(() => {
     setShipLane(targetLane);
   }, [targetLane]);
 
-  const handleFireAtMeteor = (cannonToUse: LaserCannonType, laneClicked?: number) => {
+  const handleFireAtMeteor = (cannonToUse: LaserCannonType, laneToShoot: number) => {
     if (!activeToken) return;
-    if (laneClicked !== undefined) setShipLane(laneClicked);
+    setShipLane(laneToShoot);
+
+    const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : activeToken.lexeme;
+
+    if (laneToShoot !== targetLane) {
+      onMistake({
+        phaseName: 'Análisis Léxico (Space Lexer)',
+        stepTitle: `Disparo en Carril Vacío #${laneToShoot + 1}`,
+        userAnswer: `Disparaste en el Carril ${laneToShoot + 1} donde no está el meteorito activo`,
+        whatWentWrong: `Tu nave disparó al espacio vacío en el carril ${laneToShoot + 1}, mientras el meteorito "${lexDisplay}" desciende por el carril ${targetLane + 1}.`,
+        whatShouldBeDone: `Mueve tu nave al carril ${targetLane + 1} (con ◀ / ▶ o haciendo clic sobre el meteorito) y dispara con el cañón del tipo de token correspondiente.`,
+      });
+      return;
+    }
 
     const expectedCannon = mapTokenToCannon(activeToken.type);
-    const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : activeToken.lexeme;
 
     if (cannonToUse === expectedCannon) {
       setLaserShotAnim(targetLane);
       setTimeout(() => setLaserShotAnim(null), 220);
 
-      const nextList = [...destroyedTokens, `${lexDisplay}:${activeToken.type}`];
+      const nextList = [...destroyedTokens, `${lexDisplay}→${activeToken.type}`];
       setDestroyedTokens(nextList);
       const nextIdx = currentIdx + 1;
       setCurrentIdx(nextIdx);
@@ -111,26 +123,27 @@ const SpaceLexerGame: React.FC<{
         phaseName: 'Análisis Léxico (Space Lexer)',
         stepTitle: `Meteorito #${currentIdx + 1}: "${lexDisplay}" (Línea ${activeToken.line}, Col ${activeToken.col})`,
         userAnswer: `Disparaste con ${chosenDef.name}`,
-        whatWentWrong: `El rayo rebotó en el escudo del meteorito "${lexDisplay}" porque no pertenece a la categoría ${chosenDef.id} (${chosenDef.desc}).`,
-        whatShouldBeDone: `Para desintegrar el lexema "${lexDisplay}" (token ${activeToken.type}), debes sintonizar tu nave con ${rightDef.name} y disparar.`,
+        whatWentWrong: `El rayo rebotó en el escudo magnético del meteorito "${lexDisplay}" porque no pertenece a la categoría ${chosenDef.id} (${chosenDef.desc}).`,
+        whatShouldBeDone: `Para clasificar y desintegrar el lexema "${lexDisplay}" (token ${activeToken.type}), equipa tu nave con ${rightDef.name} y dispara.`,
       });
     }
   };
 
   if (!activeToken) return null;
 
-  const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n (Fin línea)' : `"${activeToken.lexeme}"`;
+  const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n (Salto)' : `"${activeToken.lexeme}"`;
+  const nextMeteor1 = tokens[currentIdx + 1];
+  const nextMeteor2 = tokens[currentIdx + 2];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Radar espacial con meteoritos y nave */}
       <div
         style={{
           position: 'relative',
-          minHeight: '270px',
+          minHeight: '300px',
           borderRadius: 'var(--radius-md)',
           background:
-            'radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.28), rgba(6, 11, 25, 0.96) 75%)',
+            'radial-gradient(circle at 50% 15%, rgba(37, 99, 235, 0.32), rgba(5, 9, 20, 0.98) 78%)',
           border: '1px solid var(--blue-bright)',
           padding: '16px',
           display: 'flex',
@@ -139,29 +152,36 @@ const SpaceLexerGame: React.FC<{
           overflow: 'hidden',
         }}
       >
-        {/* Barra de estado del escuadrón espacial */}
+        {/* Cabecera del radar espacial */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
-            🚀 MISIÓN SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length}
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+            🚀 SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length} | Carril Objetivo: #{targetLane + 1}
           </span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-            1° Elige el Cañón Láser abajo &bull; 2° Dispara al Meteorito
-          </span>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+            <span>Próximos en radar:</span>
+            {nextMeteor1 && (
+              <Chip label={nextMeteor1.type === 'NEWLINE' ? '\\n' : nextMeteor1.lexeme} variant="default" />
+            )}
+            {nextMeteor2 && (
+              <Chip label={nextMeteor2.type === 'NEWLINE' ? '\\n' : nextMeteor2.lexeme} variant="default" />
+            )}
+          </div>
         </div>
 
-        {/* 4 Carriles Espaciales con el Meteorito Activo */}
+        {/* 4 Carriles de Combate Espacial */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             gap: '12px',
-            margin: '18px 0',
-            alignItems: 'center',
+            margin: '14px 0',
           }}
         >
           {[0, 1, 2, 3].map((lane) => {
             const hasMeteor = lane === targetLane;
             const isShipHere = lane === shipLane;
+            const activeCannonColor =
+              CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8';
 
             return (
               <div
@@ -171,12 +191,14 @@ const SpaceLexerGame: React.FC<{
                   if (hasMeteor) handleFireAtMeteor(selectedCannon, lane);
                 }}
                 style={{
-                  minHeight: '145px',
+                  minHeight: '165px',
                   borderRadius: 'var(--radius-sm)',
                   border: hasMeteor
-                    ? '1px dashed rgba(56, 189, 248, 0.6)'
-                    : '1px dashed rgba(255, 255, 255, 0.08)',
-                  backgroundColor: hasMeteor ? 'rgba(37, 99, 235, 0.12)' : 'rgba(15, 23, 42, 0.35)',
+                    ? '2px dashed rgba(56, 189, 248, 0.7)'
+                    : '1px dashed rgba(255, 255, 255, 0.1)',
+                  backgroundColor: hasMeteor
+                    ? 'rgba(37, 99, 235, 0.14)'
+                    : 'rgba(15, 23, 42, 0.4)',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -186,7 +208,10 @@ const SpaceLexerGame: React.FC<{
                   position: 'relative',
                 }}
               >
-                {/* Meteorito en este carril */}
+                <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                  CARRIL {lane + 1}
+                </span>
+
                 {hasMeteor ? (
                   <button
                     type="button"
@@ -200,7 +225,7 @@ const SpaceLexerGame: React.FC<{
                       borderRadius: '999px',
                       background: 'linear-gradient(135deg, #1E293B, #0F172A)',
                       border: '2px solid var(--blue-bright)',
-                      boxShadow: '0 0 18px rgba(56, 189, 248, 0.45)',
+                      boxShadow: '0 0 20px rgba(56, 189, 248, 0.5)',
                       color: '#FFFFFF',
                       fontFamily: 'var(--font-mono)',
                       fontWeight: 800,
@@ -215,58 +240,84 @@ const SpaceLexerGame: React.FC<{
                     <span>{lexDisplay}</span>
                   </button>
                 ) : (
-                  <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)' }}>∙ ∙ ∙</span>
+                  <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.15)' }}>✦</span>
                 )}
 
-                {/* Rayo láser animado */}
+                {/* Rayo láser de la nave */}
                 {isShipHere && (
                   <div
                     style={{
-                      width: '4px',
-                      height: '38px',
-                      borderRadius: '2px',
-                      backgroundColor:
-                        CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8',
-                      boxShadow: `0 0 12px ${
-                        CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8'
-                      }`,
-                      opacity: laserShotAnim === lane ? 1 : 0.45,
+                      width: '5px',
+                      height: '42px',
+                      borderRadius: '999px',
+                      backgroundColor: activeCannonColor,
+                      boxShadow: `0 0 14px ${activeCannonColor}`,
+                      opacity: laserShotAnim === lane ? 1 : 0.55,
                     }}
                   />
                 )}
 
-                {/* Nave espacial en la base del carril */}
+                {/* Nave espacial */}
                 <div
                   style={{
-                    fontSize: isShipHere ? '1.65rem' : '1.1rem',
-                    opacity: isShipHere ? 1 : 0.3,
-                    transform: isShipHere ? 'scale(1.1)' : 'scale(0.9)',
-                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px',
                   }}
                 >
-                  {isShipHere ? '🛸' : '▲'}
+                  <span style={{ fontSize: isShipHere ? '1.75rem' : '1.1rem', opacity: isShipHere ? 1 : 0.25 }}>
+                    {isShipHere ? '🛸' : '▲'}
+                  </span>
+                  {isShipHere && (
+                    <span
+                      style={{
+                        fontSize: '0.65rem',
+                        fontFamily: 'var(--font-mono)',
+                        color: activeCannonColor,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {selectedCannon}
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Botón grande de Disparo Directo */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        {/* Controles de cabina de la nave: Mover Izquierda / Disparar / Mover Derecha */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShipLane((l) => Math.max(0, l - 1))}
+          >
+            ◀ Mover Nave Izq
+          </Button>
           <Button
             variant="primary"
-            onClick={() => handleFireAtMeteor(selectedCannon, targetLane)}
+            size="sm"
+            onClick={() => handleFireAtMeteor(selectedCannon, shipLane)}
           >
-            🔫 Disparar {CANNONS.find((c) => c.id === selectedCannon)?.id} contra Meteorito {lexDisplay}
+            🔥 DISPARAR {selectedCannon} EN CARRIL #{shipLane + 1}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShipLane((l) => Math.min(3, l + 1))}
+          >
+            Mover Nave Der ▶
           </Button>
         </div>
       </div>
 
-      {/* Selector de los 4 Cañones Láser de la Nave (permite también disparar directo al hacer clic) */}
+      {/* Bahía de 4 Cañones Láser (sintoniza el cañón y dispara al meteorito) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 215px), 1fr))',
           gap: '10px',
         }}
       >
@@ -296,11 +347,11 @@ const SpaceLexerGame: React.FC<{
                 transition: 'all 0.15s ease',
               }}
             >
-              <strong style={{ fontSize: '0.86rem', color: cannon.color }}>
+              <strong style={{ fontSize: '0.85rem', color: cannon.color }}>
                 {cannon.name}
               </strong>
-              <span style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>
-                {cannon.desc} (Clic para equipar y disparar)
+              <span style={{ fontSize: '0.73rem', color: 'var(--muted)' }}>
+                {cannon.desc}
               </span>
             </button>
           );
@@ -311,17 +362,23 @@ const SpaceLexerGame: React.FC<{
 };
 
 // ============================================================================
-// 2. FASE SINTÁCTICA: 🕸️ AST CONSTELLATION (Conectar Puntos y Nodos Estelares)
+// 2. FASE SINTÁCTICA: 🕸️ AST CONSTELLATION (Conectar Puntos en Mapa Estelar)
 // ============================================================================
-interface StarLink {
+interface StarPoint {
   id: string;
+  label: string;
+  role: 'parent' | 'child';
+  x: number;
+  y: number;
+}
+
+interface ConstellationEdge {
+  id: string;
+  parentId: string;
+  childId: string;
   parentLabel: string;
   childLabel: string;
-  ruleExplain: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+  explain: string;
 }
 
 const AstConstellationGame: React.FC<{
@@ -330,287 +387,297 @@ const AstConstellationGame: React.FC<{
   onMistake: (f: GameMistakeFeedback) => void;
   onStepProgress: (idx: number) => void;
 }> = ({ phase, onWin, onMistake, onStepProgress }) => {
-  const links: StarLink[] = useMemo(() => {
+  const { points, edges } = useMemo(() => {
     const stmts: any[] = phase.output?.ast?.statements || [];
-    const result: StarLink[] = [];
+    const pts: StarPoint[] = [];
+    const edgs: ConstellationEdge[] = [];
 
     stmts.forEach((stmt, idx) => {
-      const isAssign = stmt.kind === 'Assign';
-      const parentName = isAssign ? `Assign(${stmt.name} =)` : `Print(print)`;
+      const baseX = stmts.length === 1 ? 50 : 16 + (idx * 68) / Math.max(1, stmts.length - 1);
+      const stmtId = `stmt-${idx}`;
+      const stmtLabel = stmt.kind === 'Assign' ? `${stmt.name} =` : `print()`;
+
+      pts.push({
+        id: stmtId,
+        label: stmtLabel,
+        role: 'parent',
+        x: baseX,
+        y: 18,
+      });
+
       const expr = stmt.expr;
-
       if (expr?.kind === 'BinOp') {
-        // Si tiene subexpresión derecha binaria (ej. a + b * 2), primero se debe conectar la de mayor precedencia (*)
-        if (expr.right?.kind === 'BinOp') {
-          const innerOp = expr.right.op;
-          const rLeft = expr.right.left?.name ?? expr.right.left?.value ?? 'izq';
-          const rRight = expr.right.right?.name ?? expr.right.right?.value ?? 'der';
-          result.push({
-            id: `link-inner-${idx}`,
-            parentLabel: `Nodo '${innerOp}' ( Línea ${idx + 1} )`,
-            childLabel: `Hijos (${rLeft}, ${rRight})`,
-            ruleExplain: `Por precedencia de operadores, '${innerOp}' (nivel term) debe conectar primero a sus operandos (${rLeft} y ${rRight}) antes de unirse a '${expr.op}'.`,
-            x1: 68,
-            y1: 55,
-            x2: 80,
-            y2: 85,
-          });
-        }
-
-        const leftLabel = expr.left?.name ?? expr.left?.value ?? 'expr_izq';
-        const rightLabel =
-          expr.right?.kind === 'BinOp'
-            ? `Subárbol (${expr.right.op})`
-            : expr.right?.name ?? expr.right?.value ?? 'expr_der';
-
-        result.push({
-          id: `link-bin-${idx}`,
-          parentLabel: `Nodo '${expr.op}' ( Línea ${idx + 1} )`,
-          childLabel: `Operandos (${leftLabel} y ${rightLabel})`,
-          ruleExplain: `El operador '${expr.op}' enlaza como padre a '${leftLabel}' por la izquierda y a '${rightLabel}' por la derecha.`,
-          x1: 50,
-          y1: 35,
-          x2: 68,
-          y2: 55,
+        const opId = `op-${idx}`;
+        const opLabel = `Op(${expr.op})`;
+        pts.push({
+          id: opId,
+          label: opLabel,
+          role: 'parent',
+          x: baseX,
+          y: 48,
         });
 
-        result.push({
-          id: `link-stmt-${idx}`,
-          parentLabel: `${parentName} [Línea ${idx + 1}]`,
-          childLabel: `Raíz de expresión '${expr.op}'`,
-          ruleExplain: `La sentencia ${parentName} conecta su ranura de expresión con el nodo raíz '${expr.op}'.`,
-          x1: 30,
-          y1: 18,
-          x2: 50,
-          y2: 35,
+        const childId = `leaf-${idx}`;
+        const rightText =
+          expr.right?.kind === 'BinOp'
+            ? `${expr.right.left?.name ?? expr.right.left?.value}${expr.right.op}${expr.right.right?.name ?? expr.right.right?.value}`
+            : `${expr.right?.name ?? expr.right?.value ?? 'der'}`;
+        const leftText = `${expr.left?.name ?? expr.left?.value ?? 'izq'}`;
+        const childLabel = `${leftText}, ${rightText}`;
+
+        pts.push({
+          id: childId,
+          label: childLabel,
+          role: 'child',
+          x: baseX,
+          y: 80,
+        });
+
+        // Primero conectar el operador con sus operandos (de abajo hacia arriba) y luego la sentencia con el operador
+        edgs.push({
+          id: `edge-op-${idx}`,
+          parentId: opId,
+          childId: childId,
+          parentLabel: opLabel,
+          childLabel: childLabel,
+          explain: `En la línea ${idx + 1}, primero debes conectar el nodo operador '${opLabel}' con sus operandos hijos '${childLabel}'.`,
+        });
+
+        edgs.push({
+          id: `edge-stmt-${idx}`,
+          parentId: stmtId,
+          childId: opId,
+          parentLabel: stmtLabel,
+          childLabel: opLabel,
+          explain: `Una vez agrupada la operación '${opLabel}', debes conectarla como hija del nodo de sentencia '${stmtLabel}'.`,
         });
       } else {
+        const valId = `val-${idx}`;
         const valLabel =
           expr?.kind === 'Neg'
-            ? `Neg(-${expr.operand?.name ?? expr.operand?.value ?? 'x'})`
-            : expr?.name ?? expr?.value ?? 'valor';
-        result.push({
-          id: `link-simple-${idx}`,
-          parentLabel: `${parentName} [Línea ${idx + 1}]`,
-          childLabel: `Operando '${valLabel}'`,
-          ruleExplain: `En la línea ${idx + 1}, el nodo de sentencia ${parentName} se conecta directamente con su hijo '${valLabel}'.`,
-          x1: 25 + (idx * 18) % 50,
-          y1: 22,
-          x2: 35 + (idx * 18) % 50,
-          y2: 72,
+            ? `-${expr.operand?.name ?? expr.operand?.value ?? 'x'}`
+            : `${expr?.name ?? expr?.value ?? '0'}`;
+
+        pts.push({
+          id: valId,
+          label: valLabel,
+          role: 'child',
+          x: baseX,
+          y: 72,
+        });
+
+        edgs.push({
+          id: `edge-simple-${idx}`,
+          parentId: stmtId,
+          childId: valId,
+          parentLabel: stmtLabel,
+          childLabel: valLabel,
+          explain: `En la sentencia #${idx + 1}, debes conectar el nodo padre '${stmtLabel}' con su valor hijo '${valLabel}'.`,
         });
       }
     });
 
-    return result;
+    return { points: pts, edges: edgs };
   }, [phase]);
 
-  const [connectedCount, setConnectedCount] = useState(0);
-  const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
+  const [completedEdgeIds, setCompletedEdgeIds] = useState<string[]>([]);
+  const [selectedFirstPoint, setSelectedFirstPoint] = useState<StarPoint | null>(null);
 
-  const currentLink = links[connectedCount];
+  const nextRequiredEdge = edges[completedEdgeIds.length];
 
-  const handleConnectAttempt = (targetChoice: 'correct' | 'invert-hierarchy' | 'skip-precedence') => {
-    if (!currentLink) return;
+  const handleClickStarPoint = (pt: StarPoint) => {
+    if (!nextRequiredEdge) return;
 
-    if (targetChoice === 'correct') {
-      const next = connectedCount + 1;
-      setConnectedCount(next);
-      setSelectedOrigin(null);
-      onStepProgress(next);
-      if (next >= links.length) {
+    // Primer clic: seleccionar punto de origen (Padre)
+    if (!selectedFirstPoint) {
+      setSelectedFirstPoint(pt);
+      return;
+    }
+
+    // Si hace clic en el mismo punto, deselecciona
+    if (selectedFirstPoint.id === pt.id) {
+      setSelectedFirstPoint(null);
+      return;
+    }
+
+    // Segundo clic: verificar si la conexión (selectedFirstPoint -> pt) es el enlace esperado
+    const isExactMatch =
+      selectedFirstPoint.id === nextRequiredEdge.parentId &&
+      pt.id === nextRequiredEdge.childId;
+
+    if (isExactMatch) {
+      const nextCompleted = [...completedEdgeIds, nextRequiredEdge.id];
+      setCompletedEdgeIds(nextCompleted);
+      setSelectedFirstPoint(null);
+      onStepProgress(nextCompleted.length);
+      if (nextCompleted.length >= edges.length) {
         onWin();
       }
-    } else if (targetChoice === 'invert-hierarchy') {
-      onMistake({
-        phaseName: 'Análisis Sintáctico (AST Constellation)',
-        stepTitle: `Conexión Estelar #${connectedCount + 1}`,
-        userAnswer: `Intentaste conectar los operandos hojas como padres de ${currentLink.parentLabel}`,
-        whatWentWrong:
-          'Cortocircuito en el AST: colocaste un literal/variable como nodo padre de un operador o sentencia. Las hojas no pueden tener hijos en el árbol sintáctico.',
-        whatShouldBeDone: currentLink.ruleExplain,
-      });
     } else {
+      const fromLabel = selectedFirstPoint.label;
+      const toLabel = pt.label;
+      setSelectedFirstPoint(null);
       onMistake({
         phaseName: 'Análisis Sintáctico (AST Constellation)',
-        stepTitle: `Conexión Estelar #${connectedCount + 1}`,
-        userAnswer: 'Intentaste saltar la precedencia conectando directamente la raíz sin agrupar el subárbol',
+        stepTitle: `Enlace Estelar #${completedEdgeIds.length + 1} de ${edges.length}`,
+        userAnswer: `Intentaste trazar un cable desde [${fromLabel}] hacia [${toLabel}]`,
         whatWentWrong:
-          'Rompiste el orden de precedencia gramatical (term vs expr). Si conectas el operador de menor precedencia primero, el árbol evaluaría la operación equivocada.',
-        whatShouldBeDone: currentLink.ruleExplain,
+          selectedFirstPoint.role === 'child'
+            ? `Seleccionaste una hoja ('${fromLabel}') como nodo padre. En el árbol sintáctico (AST), los literales y variables son nodos hoja y no pueden tener hijos.`
+            : `Conectaste '${fromLabel}' con '${toLabel}', rompiendo el orden jerárquico o de precedencia del árbol sintáctico.`,
+        whatShouldBeDone: `${nextRequiredEdge.explain} Haz clic primero en la estrella [${nextRequiredEdge.parentLabel}] y luego en la estrella [${nextRequiredEdge.childLabel}].`,
       });
     }
   };
 
-  if (!currentLink) return null;
+  if (!nextRequiredEdge) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Mapa Estelar SVG de Conectar Puntos */}
       <div
         style={{
           padding: '16px',
           borderRadius: 'var(--radius-md)',
-          background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.16), #070d19 80%)',
+          background: 'radial-gradient(circle at 50% 45%, rgba(16, 185, 129, 0.16), #060b17 85%)',
           border: '1px solid var(--green)',
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>
-            🕸️ CONSTELACIÓN AST — Enlace {connectedCount + 1} de {links.length}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
+            🕸️ CONSTELACIÓN AST (CONECTAR PUNTOS) — Cables {completedEdgeIds.length} / {edges.length}
           </span>
-          <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-            Haz clic en el Nodo Padre y luego conecta el cable con su Nodo Hijo
+          <span style={{ fontSize: '0.8rem', color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
+            {selectedFirstPoint
+              ? `⚡ Origen fijado en [${selectedFirstPoint.label}] → Ahora haz clic en el nodo hijo destino`
+              : `Objetivo actual: Conecta [${nextRequiredEdge.parentLabel}] ➔ [${nextRequiredEdge.childLabel}]`}
           </span>
         </div>
 
+        {/* Lienzo SVG Interactivo donde cada estrella es un punto clicable */}
         <svg
           viewBox="0 0 100 100"
           style={{
             width: '100%',
-            height: '180px',
-            backgroundColor: 'rgba(6, 11, 23, 0.75)',
+            height: '250px',
+            backgroundColor: 'rgba(5, 10, 22, 0.85)',
             borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--line)',
+            border: '1px solid var(--line-strong)',
+            userSelect: 'none',
           }}
         >
           {/* Cables ya conectados */}
-          {links.slice(0, connectedCount).map((lnk) => (
-            <g key={lnk.id}>
-              <line
-                x1={lnk.x1}
-                y1={lnk.y1}
-                x2={lnk.x2}
-                y2={lnk.y2}
-                stroke="#10B981"
-                strokeWidth="1.6"
-              />
-              <circle cx={lnk.x1} cy={lnk.y1} r="3.5" fill="#10B981" />
-              <circle cx={lnk.x2} cy={lnk.y2} r="3.5" fill="#38BDF8" />
-            </g>
-          ))}
+          {edges.map((edg) => {
+            const isDone = completedEdgeIds.includes(edg.id);
+            const isNext = edg.id === nextRequiredEdge.id;
+            const p1 = points.find((p) => p.id === edg.parentId);
+            const p2 = points.find((p) => p.id === edg.childId);
+            if (!p1 || !p2) return null;
 
-          {/* Cable guía punteado del enlace actual */}
-          <line
-            x1={currentLink.x1}
-            y1={currentLink.y1}
-            x2={currentLink.x2}
-            y2={currentLink.y2}
-            stroke="#38BDF8"
-            strokeWidth="1.2"
-            strokeDasharray="2.5 2.5"
-          />
+            return (
+              <g key={edg.id}>
+                {(isDone || isNext) && (
+                  <line
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={p2.x}
+                    y2={p2.y}
+                    stroke={isDone ? '#10B981' : 'rgba(56, 189, 248, 0.35)'}
+                    strokeWidth={isDone ? '1.6' : '0.9'}
+                    strokeDasharray={isDone ? undefined : '2 2'}
+                  />
+                )}
+              </g>
+            );
+          })}
 
-          {/* Punto Padre Activo */}
-          <circle
-            cx={currentLink.x1}
-            cy={currentLink.y1}
-            r="5.5"
-            fill={selectedOrigin ? '#10B981' : '#2563EB'}
-            stroke="#FFFFFF"
-            strokeWidth="1"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setSelectedOrigin(currentLink.parentLabel)}
-          />
-          <text
-            x={currentLink.x1}
-            y={Math.max(10, currentLink.y1 - 8)}
-            fill="#FFFFFF"
-            fontSize="4.2"
-            textAnchor="middle"
-            fontFamily="monospace"
-          >
-            PADRE: {currentLink.parentLabel}
-          </text>
+          {/* Puntos Estelares Interactivos */}
+          {points.map((pt) => {
+            const isSelected = selectedFirstPoint?.id === pt.id;
+            const isTargetParent = nextRequiredEdge.parentId === pt.id;
+            const isTargetChild = nextRequiredEdge.childId === pt.id;
 
-          {/* Punto Hijo Destino */}
-          <circle
-            cx={currentLink.x2}
-            cy={currentLink.y2}
-            r="5.5"
-            fill="#10B981"
-            stroke="#FFFFFF"
-            strokeWidth="1"
-            style={{ cursor: 'pointer' }}
-            onClick={() => handleConnectAttempt('correct')}
-          />
-          <text
-            x={currentLink.x2}
-            y={Math.min(96, currentLink.y2 + 11)}
-            fill="#34D399"
-            fontSize="4.2"
-            textAnchor="middle"
-            fontFamily="monospace"
-          >
-            HIJO: {currentLink.childLabel}
-          </text>
+            return (
+              <g
+                key={pt.id}
+                onClick={() => handleClickStarPoint(pt)}
+                style={{ cursor: 'pointer' }}
+              >
+                {isSelected && (
+                  <circle
+                    cx={pt.x}
+                    cy={pt.y}
+                    r="8"
+                    fill="none"
+                    stroke="#38BDF8"
+                    strokeWidth="0.9"
+                    strokeDasharray="2 1"
+                  />
+                )}
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="5.2"
+                  fill={
+                    isSelected
+                      ? '#38BDF8'
+                      : isTargetParent || isTargetChild
+                      ? '#10B981'
+                      : '#1E293B'
+                  }
+                  stroke="#FFFFFF"
+                  strokeWidth="1"
+                />
+                <text
+                  x={pt.x}
+                  y={pt.y - 7.5}
+                  fill="#FFFFFF"
+                  fontSize="3.8"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  fontFamily="monospace"
+                >
+                  {pt.label}
+                </text>
+              </g>
+            );
+          })}
         </svg>
 
-        {/* Controles de Conexión de Nodos */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-            gap: '10px',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => handleConnectAttempt('correct')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(16, 185, 129, 0.2)',
-              border: '2px solid var(--green)',
-              color: '#FFFFFF',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            🔌 Conectar Padre [{currentLink.parentLabel}] ➔ Hijo [{currentLink.childLabel}]
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleConnectAttempt('invert-hierarchy')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              border: '1px solid var(--line-strong)',
-              color: 'var(--text)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.84rem',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            🔌 Conectar al revés: Hijo [{currentLink.childLabel}] como padre de [{currentLink.parentLabel}]
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleConnectAttempt('skip-precedence')}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              border: '1px solid var(--line-strong)',
-              color: 'var(--text)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.84rem',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            🔌 Romper precedencia: Enlazar operandos sin respetar jerarquía EBNF
-          </button>
+        {/* Botones de Nodos Estelares accesibles por teclado y ratón */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>
+            Nodos en el mapa estelar (haz clic en 1° Padre y 2° Hijo):
+          </span>
+          {points.map((pt) => {
+            const isSelected = selectedFirstPoint?.id === pt.id;
+            return (
+              <button
+                key={pt.id}
+                type="button"
+                onClick={() => handleClickStarPoint(pt)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  backgroundColor: isSelected
+                    ? 'rgba(56, 189, 248, 0.28)'
+                    : 'rgba(15, 23, 42, 0.85)',
+                  border: isSelected
+                    ? '2px solid var(--blue-bright)'
+                    : '1px solid var(--line-strong)',
+                  color: '#FFFFFF',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                ⭐ {pt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -618,7 +685,7 @@ const AstConstellationGame: React.FC<{
 };
 
 // ============================================================================
-// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D del Guardián de Memoria)
+// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D con Teclado y D-Pad)
 // ============================================================================
 const SymbolMazeGame: React.FC<{
   phase: PhaseResult;
@@ -631,7 +698,6 @@ const SymbolMazeGame: React.FC<{
     [phase]
   );
 
-  // Construimos una ruta en laberinto 5x5 donde el dron debe recoger primero las llaves de declaración y luego abrir las puertas de uso
   const [dronePos, setDronePos] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
   const [collectedKeys, setCollectedKeys] = useState<string[]>([]);
   const [unlockedGates, setUnlockedGates] = useState<string[]>([]);
@@ -639,86 +705,82 @@ const SymbolMazeGame: React.FC<{
   const firstVar = symbols[0]?.name || 'a';
   const secondVar = symbols[1]?.name || firstVar;
 
-  // Mapa 5x5:
-  // (0,0) Inicio -> (0,1) Llave 1 -> (0,2) Pared -> (0,3) Trampa E-301
-  // (1,1) Pasillo -> (1,2) Llave 2 -> (1,3) Puerta Uso 1 -> (1,4) Meta
-  const moveDroneTo = (r: number, c: number) => {
-    if (r < 0 || r > 2 || c < 0 || c > 4) return;
+  const tryMove = (targetR: number, targetC: number) => {
+    if (targetR < 0 || targetR > 3 || targetC < 0 || targetC > 4) return;
 
-    // Paredes del laberinto
-    if ((r === 0 && c === 2) || (r === 2 && c === 1) || (r === 2 && c === 3)) {
+    // Paredes del laberinto 4x5
+    const walls = new Set(['0,2', '1,0', '2,1', '2,3', '3,2']);
+    if (walls.has(`${targetR},${targetC}`)) {
       return;
     }
 
-    // Trampa de variable no declarada en (0, 3) o (2, 2)
-    if (r === 0 && c === 3) {
+    // Trampa 1 en (0, 3): Leer variable fantasma 'z_undef' no declarada
+    if (targetR === 0 && targetC === 3) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze)',
-        stepTitle: 'Casilla de Trampa: Variable Fantasma No Declarada (E-301)',
-        userAnswer: 'Entraste al sector de memoria de una variable sin declaración previa',
+        stepTitle: 'Trampa de Memoria: Variable No Declarada (E-301)',
+        userAnswer: 'Guiaste el dron hacia la celda de lectura de una variable sin declarar (z_undef)',
         whatWentWrong:
-          'Intentaste leer una dirección de memoria que no existe en la Tabla de Símbolos, disparando el error semántico E-301.',
-        whatShouldBeDone: `Recorre el camino seguro del laberinto recogiendo primero las llaves de declaración (🔑 ${firstVar}, 🔑 ${secondVar}) antes de cruzar las compuertas de lectura.`,
+          'Intentaste leer en memoria una variable que no existe en la Tabla de Símbolos, lo cual dispara el error semántico E-301.',
+        whatShouldBeDone: `Evita las celdas de variables no declaradas (☠️) y recoge primero las llaves 🔑 Declarar '${firstVar}' y 🔑 Declarar '${secondVar}'.`,
       });
       return;
     }
 
-    // Compuerta de lectura en (1, 3): exige haber recogido las llaves primero
-    if (r === 1 && c === 3 && !collectedKeys.includes(secondVar)) {
+    // Trampa 2 en (3, 1): Tipo incompatible / lectura antes de asignar
+    if (targetR === 3 && targetC === 1) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze)',
-        stepTitle: `Compuerta de Lectura de '${secondVar}'`,
-        userAnswer: `Intentaste cruzar la puerta 'Usar ${secondVar}' sin tener la llave 'Declarar ${secondVar}'`,
-        whatWentWrong: `En MiniArit no puedes usar la variable '${secondVar}' en una expresión si todavía no ha sido registrada en la Tabla de Símbolos.`,
-        whatShouldBeDone: `Pasa primero por la casilla 🔑 Declarar '${secondVar}' para registrarla en la Tabla de Símbolos y luego cruza esta compuerta.`,
+        stepTitle: 'Trampa de Alcance por Línea (E-301)',
+        userAnswer: 'Intentaste usar una variable en una línea anterior a su asignación',
+        whatWentWrong:
+          'En MiniArit el alcance es secuencial por línea: una variable solo existe después de la línea donde se le asigna un valor.',
+        whatShouldBeDone: `Sigue el corredor principal recogiendo las llaves de declaración en orden de línea antes de cruzar las compuertas.`,
       });
       return;
     }
 
-    // Meta en (1, 4): exige haber abierto la compuerta de lectura
-    if (r === 1 && c === 4 && !unlockedGates.includes(firstVar)) {
+    // Compuerta de lectura en (1, 3): requiere haber recogido ambas llaves
+    if (targetR === 1 && targetC === 3 && !collectedKeys.includes(secondVar)) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze)',
+        stepTitle: `Compuerta de Uso: Leer '${secondVar}'`,
+        userAnswer: `Intentaste cruzar la compuerta 'Usar ${secondVar}' sin haber recogido la llave 'Declarar ${secondVar}'`,
+        whatWentWrong: `El analizador semántico consultó '${secondVar}' en la Tabla de Símbolos pero aún no la habías registrado (E-301).`,
+        whatShouldBeDone: `Mueve el dron primero a la casilla 🔑 Declarar '${secondVar}' (fila 1, col 2) para registrarla en la Tabla de Símbolos y luego cruza esta compuerta.`,
+      });
+      return;
+    }
+
+    // Meta en (3, 4): requiere haber cruzado la compuerta de validación
+    if (targetR === 3 && targetC === 4 && !unlockedGates.includes(secondVar)) {
       onMistake({
         phaseName: 'Análisis Semántico (Symbol Maze)',
         stepTitle: 'Portal de Salida Semántica',
-        userAnswer: 'Intentaste salir del laberinto sin verificar las lecturas de variables',
+        userAnswer: 'Intentaste salir del laberinto sin abrir la Compuerta de Lectura',
         whatWentWrong:
-          'El analizador semántico no puede dar por terminado el programa sin antes declarar y verificar todas las variables en la Tabla de Símbolos.',
-        whatShouldBeDone: `Recoge primero 🔑 Declarar '${firstVar}', luego 🔑 Declarar '${secondVar}', cruza 🚪 Usar '${firstVar}' y finalmente entra al Portal 🏁.`,
+          'El analizador semántico debe verificar tanto las declaraciones como los usos de las variables antes de aprobar la fase.',
+        whatShouldBeDone: `Pasa por 🔑 Declarar '${firstVar}' → 🔑 Declarar '${secondVar}' → 🚪 Usar '${secondVar}' y finalmente entra al Portal 🏁.`,
       });
       return;
     }
 
-    setDronePos({ r, c });
+    setDronePos({ r: targetR, c: targetC });
 
-    if (r === 0 && c === 1 && !collectedKeys.includes(firstVar)) {
-      const next = [...collectedKeys, firstVar];
-      setCollectedKeys(next);
+    if (targetR === 0 && targetC === 1 && !collectedKeys.includes(firstVar)) {
+      setCollectedKeys((prev) => [...prev, firstVar]);
       onStepProgress(1);
     }
-    if (r === 1 && c === 2 && !collectedKeys.includes(secondVar)) {
-      const next = [...collectedKeys, secondVar];
-      setCollectedKeys(next);
+    if (targetR === 1 && targetC === 2 && !collectedKeys.includes(secondVar)) {
+      setCollectedKeys((prev) => [...prev, secondVar]);
       onStepProgress(2);
     }
-    if (r === 1 && c === 3 && !unlockedGates.includes(firstVar)) {
-      setUnlockedGates([...unlockedGates, firstVar]);
+    if (targetR === 1 && targetC === 3 && !unlockedGates.includes(secondVar)) {
+      setUnlockedGates((prev) => [...prev, secondVar]);
       onStepProgress(3);
     }
-    if (r === 1 && c === 4) {
+    if (targetR === 3 && targetC === 4) {
       onWin();
-    }
-  };
-
-  // Paso automático guiado para avanzar un paso del laberinto con 1 clic
-  const handleAutoStep = () => {
-    if (!collectedKeys.includes(firstVar)) {
-      moveDroneTo(0, 1);
-    } else if (!collectedKeys.includes(secondVar)) {
-      moveDroneTo(1, 2);
-    } else if (!unlockedGates.includes(firstVar)) {
-      moveDroneTo(1, 3);
-    } else {
-      moveDroneTo(1, 4);
     }
   };
 
@@ -728,25 +790,41 @@ const SymbolMazeGame: React.FC<{
         style={{
           padding: '16px',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(10, 20, 38, 0.9)',
+          background: 'rgba(10, 20, 38, 0.92)',
           border: '1px solid var(--blue-bright)',
           display: 'flex',
           flexDirection: 'column',
           gap: '14px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
-            🧭 LABERINTO DE MEMORIA (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <Button variant="primary" size="sm" onClick={handleAutoStep}>
-              🤖 Avanzar Dron por Ruta Válida
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+              🧭 LABERINTO DE MEMORIA (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
+            </span>
+            <p style={{ fontSize: '0.76rem', color: 'var(--muted)', margin: '2px 0 0 0' }}>
+              Haz clic en las casillas o usa el D-Pad para guiar al dron 🤖: recoge 🔑 Declaraciones antes de abrir 🚪 Compuertas.
+            </p>
+          </div>
+
+          {/* Controles D-Pad de movimiento del Dron */}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r - 1, dronePos.c)}>
+              ▲
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r + 1, dronePos.c)}>
+              ▼
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c - 1)}>
+              ◀
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => tryMove(dronePos.r, dronePos.c + 1)}>
+              ▶
             </Button>
           </div>
         </div>
 
-        {/* Cuadrícula 3x5 del Laberinto */}
+        {/* Cuadrícula 4x5 del Laberinto */}
         <div
           style={{
             display: 'grid',
@@ -754,23 +832,28 @@ const SymbolMazeGame: React.FC<{
             gap: '8px',
           }}
         >
-          {[0, 1, 2].map((r) =>
+          {[0, 1, 2, 3].map((r) =>
             [0, 1, 2, 3, 4].map((c) => {
               const isDrone = dronePos.r === r && dronePos.c === c;
-              const isWall = (r === 0 && c === 2) || (r === 2 && c === 1) || (r === 2 && c === 3);
-              const isTrap = r === 0 && c === 3;
+              const walls = new Set(['0,2', '1,0', '2,1', '2,3', '3,2']);
+              const isWall = walls.has(`${r},${c}`);
+              const isTrap1 = r === 0 && c === 3;
+              const isTrap2 = r === 3 && c === 1;
               const isKey1 = r === 0 && c === 1;
               const isKey2 = r === 1 && c === 2;
               const isGate = r === 1 && c === 3;
-              const isGoal = r === 1 && c === 4;
+              const isGoal = r === 3 && c === 4;
 
               let cellLabel = 'Pasillo';
               let icon = '·';
               if (isWall) {
                 cellLabel = 'Muro';
                 icon = '🧱';
-              } else if (isTrap) {
-                cellLabel = 'Trampa E-301 (Usar var sin declarar)';
+              } else if (isTrap1) {
+                cellLabel = 'Trampa: z_undef';
+                icon = '☠️';
+              } else if (isTrap2) {
+                cellLabel = 'Trampa: Uso previo';
                 icon = '☠️';
               } else if (isKey1) {
                 cellLabel = `Declarar ${firstVar}`;
@@ -780,9 +863,9 @@ const SymbolMazeGame: React.FC<{
                 icon = collectedKeys.includes(secondVar) ? '✅' : '🔑';
               } else if (isGate) {
                 cellLabel = `Puerta: Usar ${secondVar}`;
-                icon = unlockedGates.includes(firstVar) ? '🔓' : '🚪';
+                icon = unlockedGates.includes(secondVar) ? '🔓' : '🚪';
               } else if (isGoal) {
-                cellLabel = 'Salida Semántica';
+                cellLabel = 'Meta Semántica';
                 icon = '🏁';
               }
 
@@ -791,21 +874,21 @@ const SymbolMazeGame: React.FC<{
                   key={`${r}-${c}`}
                   type="button"
                   disabled={isWall}
-                  onClick={() => moveDroneTo(r, c)}
+                  onClick={() => tryMove(r, c)}
                   style={{
-                    minHeight: '68px',
-                    padding: '8px',
+                    minHeight: '64px',
+                    padding: '6px',
                     borderRadius: 'var(--radius-sm)',
                     backgroundColor: isWall
-                      ? 'rgba(5, 10, 20, 0.95)'
+                      ? 'rgba(5, 9, 18, 0.96)'
                       : isDrone
                       ? 'rgba(16, 185, 129, 0.28)'
-                      : isTrap
+                      : isTrap1 || isTrap2
                       ? 'rgba(244, 63, 94, 0.14)'
                       : 'rgba(19, 36, 66, 0.75)',
                     border: isDrone
                       ? '2px solid var(--green)'
-                      : isTrap
+                      : isTrap1 || isTrap2
                       ? '1px dashed var(--red)'
                       : '1px solid var(--line)',
                     color: '#FFFFFF',
@@ -814,13 +897,13 @@ const SymbolMazeGame: React.FC<{
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '4px',
+                    gap: '3px',
                     fontFamily: 'var(--font-mono)',
-                    fontSize: '0.75rem',
+                    fontSize: '0.73rem',
                   }}
                 >
-                  <span style={{ fontSize: '1.3rem' }}>{isDrone ? '🤖' : icon}</span>
-                  <span style={{ textAlign: 'center', lineHeight: 1.15 }}>{cellLabel}</span>
+                  <span style={{ fontSize: '1.25rem' }}>{isDrone ? '🤖' : icon}</span>
+                  <span style={{ textAlign: 'center', lineHeight: 1.1 }}>{cellLabel}</span>
                 </button>
               );
             })
@@ -832,7 +915,7 @@ const SymbolMazeGame: React.FC<{
 };
 
 // ============================================================================
-// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Tiro al Blanco)
+// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Todas las Dianas en Pista)
 // ============================================================================
 const PostOrderSniperGame: React.FC<{
   phase: PhaseResult;
@@ -845,119 +928,139 @@ const PostOrderSniperGame: React.FC<{
     [phase]
   );
 
-  const [shotIndex, setShotIndex] = useState(0);
+  const [shotCount, setShotCount] = useState(0);
 
-  const currentTarget = instrs[shotIndex];
-  const prematureTarget =
-    shotIndex + 1 < instrs.length
-      ? instrs[shotIndex + 1].text
-      : 'print t99 (temporal aún no calculado)';
+  // Mezclamos determinísticamente el orden visual de las dianas en la galería para que el jugador deba apuntar en el orden postorden real
+  const galleryTargets = useMemo(() => {
+    const realTargets = instrs.map((ins) => ({
+      id: `tac-${ins.index}`,
+      orderIndex: ins.index,
+      text: ins.text,
+      isDecoy: false,
+    }));
+    const decoy = {
+      id: 'tac-decoy',
+      orderIndex: -1,
+      text: 't_pre = a + b (Sin evaluar precedencia *)',
+      isDecoy: true,
+    };
+    const all = [...realTargets, decoy];
+    // Rotación determinista para que no estén en orden 0,1,2... lineal
+    return all.map((_, i) => all[(i * 3 + 1) % all.length]);
+  }, [instrs]);
 
-  const handleShoot = (isCorrectTarget: boolean, labelShot: string) => {
-    if (!currentTarget) return;
-    if (isCorrectTarget) {
-      const next = shotIndex + 1;
-      setShotIndex(next);
+  const expectedTarget = instrs[shotCount];
+
+  const handleShootPlate = (plate: { id: string; orderIndex: number; text: string; isDecoy: boolean }) => {
+    if (!expectedTarget) return;
+
+    if (!plate.isDecoy && plate.orderIndex === shotCount) {
+      const next = shotCount + 1;
+      setShotCount(next);
       onStepProgress(next);
       if (next >= instrs.length) {
         onWin();
       }
+    } else if (plate.isDecoy) {
+      onMistake({
+        phaseName: 'Código Intermedio TAC (Post-Order Sniper)',
+        stepTitle: `Disparo #${shotCount + 1} de ${instrs.length}`,
+        userAnswer: `Disparaste a la diana señuelo "${plate.text}"`,
+        whatWentWrong:
+          'Esa diana evalúa una suma antes que la multiplicación, violando la estructura del AST generada en la fase sintáctica.',
+        whatShouldBeDone: `Apunta con la mira ⊕ y derriba la diana "${expectedTarget.text}" (instrucción [${shotCount}] del recorrido en postorden).`,
+      });
     } else {
       onMistake({
         phaseName: 'Código Intermedio TAC (Post-Order Sniper)',
-        stepTitle: `Diana en Postorden #${shotIndex + 1} de ${instrs.length}`,
-        userAnswer: `Disparaste con la mira telescópica a: "${labelShot}"`,
-        whatWentWrong: `Disparaste fuera de orden. En generación de código de tres direcciones (TAC), no puedes emitir "${labelShot}" antes de haber emitido "${currentTarget.text}".`,
-        whatShouldBeDone: `Apunta y dispara primero a la diana [${shotIndex}] "${currentTarget.text}" siguiendo el recorrido en postorden del AST.`,
+        stepTitle: `Disparo #${shotCount + 1} de ${instrs.length}`,
+        userAnswer: `Disparaste prematuramente a la diana "${plate.text}" (posición [${plate.orderIndex}])`,
+        whatWentWrong: `Intentaste emitir "${plate.text}" antes de haber emitido "${expectedTarget.text}". En código de tres direcciones (TAC), las subexpresiones e inicializaciones previas deben emitirse primero.`,
+        whatShouldBeDone: `Derriba primero la diana "${expectedTarget.text}" (paso [${shotCount}] en postorden).`,
       });
     }
   };
 
-  if (!currentTarget) return null;
+  if (!expectedTarget) return null;
 
   return (
     <div
       style={{
         padding: '16px',
         borderRadius: 'var(--radius-md)',
-        background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 80%)',
+        background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 82%)',
         border: '1px solid var(--blue-bright)',
         display: 'flex',
         flexDirection: 'column',
         gap: '14px',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
-          🎯 CAMPO DE TIRO POST-ORDER SNIPER — Diana {shotIndex + 1} de {instrs.length}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+          🎯 CAMPO DE TIRO POST-ORDER SNIPER — Dianas Derribadas: {shotCount} / {instrs.length}
         </span>
-        <span style={{ fontSize: '0.78rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-          Apunta con la mira ⊕ a la instrucción TAC que toca emitir en postorden
+        <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+          Derriba todas las dianas de la galería en el orden exacto de emisión TAC (postorden)
         </span>
       </div>
 
-      {/* Carriles de Dianas Móviles */}
+      {/* Galería con todas las dianas simultáneas */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-          gap: '12px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gap: '10px',
           padding: '12px',
-          backgroundColor: 'rgba(6, 11, 23, 0.75)',
+          backgroundColor: 'rgba(6, 11, 23, 0.8)',
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--line)',
         }}
       >
-        <button
-          type="button"
-          onClick={() => handleShoot(true, currentTarget.text)}
-          style={{
-            padding: '16px',
-            borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(15, 23, 42, 0.9))',
-            border: '2px solid var(--green)',
-            color: '#FFFFFF',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 800,
-            fontSize: '0.95rem',
-            cursor: 'crosshair',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>🎯 Diana: {currentTarget.text}</span>
-          <span style={{ color: 'var(--green)' }}>⊕ DISPARAR</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleShoot(false, prematureTarget)}
-          style={{
-            padding: '16px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            border: '2px dashed var(--amber)',
-            color: 'var(--text)',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            fontSize: '0.92rem',
-            cursor: 'crosshair',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>🎯 Diana Señuelo (Preorden): {prematureTarget}</span>
-          <span style={{ color: 'var(--amber)' }}>⊕ DISPARAR</span>
-        </button>
+        {galleryTargets.map((plate) => {
+          const alreadyShot = !plate.isDecoy && plate.orderIndex < shotCount;
+          return (
+            <button
+              key={plate.id}
+              type="button"
+              disabled={alreadyShot}
+              onClick={() => handleShootPlate(plate)}
+              style={{
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: alreadyShot
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : 'rgba(15, 23, 42, 0.92)',
+                border: alreadyShot
+                  ? '1px solid var(--green)'
+                  : '2px solid var(--blue-bright)',
+                color: alreadyShot ? 'var(--green)' : '#FFFFFF',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                cursor: alreadyShot ? 'default' : 'crosshair',
+                opacity: alreadyShot ? 0.65 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+              }}
+            >
+              <span>
+                {alreadyShot ? '💥' : '🎯'} {plate.text}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: alreadyShot ? 'var(--green)' : 'var(--blue-bright)' }}>
+                {alreadyShot ? 'EMITIDA' : '⊕ DISPARAR'}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 };
 
 // ============================================================================
-// 5. FASE OPTIMIZACIÓN: 🛡️ OPTIMIZER TOWER DEFENSE (Defensa en Cinta)
+// 5. FASE OPTIMIZACIÓN: 🛡️ OPTIMIZER TOWER DEFENSE (Cinta y Torretas)
 // ============================================================================
 const OptimizerDefenseGame: React.FC<{
   phase: PhaseResult;
@@ -968,24 +1071,30 @@ const OptimizerDefenseGame: React.FC<{
   const waves = [
     {
       id: 'wave-prop',
-      title: 'Oleada 1 en la Cinta: Variables con Constantes Conocidas (a = 5, b = 3)',
+      packet: 't1 = b * 2   |   t2 = a + t1   (con a=5, b=3)',
+      transformed: 't1 = 3 * 2   |   t2 = 5 + t1',
+      title: 'Paquete #1 en Cinta: Variables con Constantes Conocidas',
       expectedTurret: 'PROP',
       explain:
-        'Primero debes activar la Torreta Propagadora (Azul) para sustituir las variables por sus valores constantes conocidos en las expresiones.',
+        'Activa primero la Torreta Propagadora (Azul) para sustituir las variables por sus valores constantes conocidos (a → 5, b → 3).',
     },
     {
       id: 'wave-fold',
-      title: 'Oleada 2 en la Cinta: Operaciones entre Constantes (3 * 2 y 5 + 6)',
+      packet: 't1 = 3 * 2   |   t2 = 5 + 6',
+      transformed: 't1 = 6   |   t2 = 11   |   print 11',
+      title: 'Paquete #2 en Cinta: Expresiones entre Constantes Puras',
       expectedTurret: 'FOLD',
       explain:
-        'Una vez propagadas las constantes, debes disparar la Torreta Plegadora (Constant Folding) para precalcular 3 * 2 = 6 y 5 + 6 = 11.',
+        'Dispara la Torreta Plegadora (Constant Folding) para calcular 3 * 2 = 6 y 5 + 6 = 11 en tiempo de compilación.',
     },
     {
       id: 'wave-dce',
-      title: 'Oleada 3 en la Cinta: Asignaciones Muertas que ya no se vuelven a leer',
+      packet: 'a = 5, b = 3, t1 = 6, t2 = 11, c = 11 (Asignaciones sin lecturas futuras)',
+      transformed: 'Sobrevive únicamente: print 11',
+      title: 'Paquete #3 en Cinta: Temporales y Asignaciones Muertas',
       expectedTurret: 'DCE',
       explain:
-        'Finalmente, la Torreta Destructora DCE (Roja) desintegra el código muerto para que solo las instrucciones vivas lleguen al núcleo de la CPU.',
+        'Dispara el Láser Destructor DCE (Rojo) para desintegrar las instrucciones muertas antes de que consuman ciclos en la CPU.',
     },
   ];
 
@@ -1005,8 +1114,8 @@ const OptimizerDefenseGame: React.FC<{
       onMistake({
         phaseName: 'Optimización (Optimizer Tower Defense)',
         stepTitle: currentWave.title,
-        userAnswer: `Activaste ${turretName}`,
-        whatWentWrong: `Activaste la torreta equivocada para la oleada actual en la cinta transportadora. Si destruyes código antes de propagar o intentas plegar variables sin reemplazarlas antes, corrompes la optimización.`,
+        userAnswer: `Disparaste ${turretName} contra el paquete [${currentWave.packet}]`,
+        whatWentWrong: `Activaste la torreta incorrecta sobre la cinta transportadora. Si destruyes código antes de propagar o intentas plegar variables sin reemplazarlas antes, corrompes el programa.`,
         whatShouldBeDone: currentWave.explain,
       });
     }
@@ -1027,33 +1136,36 @@ const OptimizerDefenseGame: React.FC<{
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
           🛡️ TOWER DEFENSE DEL OPTIMIZADOR — Oleada {waveIdx + 1} de {waves.length} ({phase.summary})
         </span>
       </div>
 
-      {/* Cinta transportadora hacia el núcleo de la CPU */}
+      {/* Carril de Cinta Transportadora */}
       <div
         style={{
           padding: '14px 16px',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(6, 11, 23, 0.85)',
+          backgroundColor: 'rgba(6, 11, 23, 0.88)',
           border: '1px dashed var(--blue-bright)',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '10px',
+          flexDirection: 'column',
+          gap: '6px',
           fontFamily: 'var(--font-mono)',
         }}
       >
-        <span style={{ color: '#FFFFFF', fontWeight: 700 }}>
-          📦 {currentWave.title}
-        </span>
-        <Chip label="➔ Avanzando hacia 🧠 Núcleo CPU" variant="cyan" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.76rem', color: 'var(--blue-bright)' }}>
+            {currentWave.title}
+          </span>
+          <Chip label="➔ Cinta hacia 🧠 Núcleo CPU" variant="cyan" />
+        </div>
+        <strong style={{ color: '#FFFFFF', fontSize: '0.96rem' }}>
+          📦 En cinta: {currentWave.packet}
+        </strong>
       </div>
 
-      {/* Las 3 Torretas Defensivas */}
+      {/* 3 Torretas Defensivas sobre la Cinta */}
       <div
         style={{
           display: 'grid',
@@ -1075,7 +1187,7 @@ const OptimizerDefenseGame: React.FC<{
             textAlign: 'left',
           }}
         >
-          🔵 Torreta 1: Rayo Propagador (Sustituir variables por constantes)
+          🔵 Torreta 1: Rayo Propagador (Reemplazar variables por constantes)
         </button>
 
         <button
@@ -1092,7 +1204,7 @@ const OptimizerDefenseGame: React.FC<{
             textAlign: 'left',
           }}
         >
-          🟢 Torreta 2: Prensa Folding (Fusionar 3*2=6 y 5+6=11)
+          🟢 Torreta 2: Prensa Folding (Calcular operaciones constantes)
         </button>
 
         <button
@@ -1109,7 +1221,7 @@ const OptimizerDefenseGame: React.FC<{
             textAlign: 'left',
           }}
         >
-          🔴 Torreta 3: Láser DCE (Eliminar asignaciones muertas)
+          🔴 Torreta 3: Láser DCE (Desintegrar asignaciones muertas)
         </button>
       </div>
     </div>
@@ -1117,8 +1229,10 @@ const OptimizerDefenseGame: React.FC<{
 };
 
 // ============================================================================
-// 6. FASE ENSAMBLADOR: ⚡ REGISTER SWITCHBOARD (Conectar Cables a Registros R0-R7)
+// 6. FASE ENSAMBLADOR: ⚡ REGISTER SWITCHBOARD (Conectar Chips R0-R7 y Compuertas)
 // ============================================================================
+const ISA_OPCODES = ['LOADI', 'LOAD', 'STORE', 'ADD', 'SUB', 'MUL', 'NEG', 'PRINT', 'HALT'];
+
 const RegisterSwitchboardGame: React.FC<{
   phase: PhaseResult;
   onWin: () => void;
@@ -1133,30 +1247,60 @@ const RegisterSwitchboardGame: React.FC<{
   const [pcIdx, setPcIdx] = useState(0);
   const currentIns = instrs[pcIdx];
 
-  const handlePatchCable = (isCorrect: boolean, chosenLabel: string, wrongReason: string) => {
+  const expectedOpcode = useMemo(() => {
+    if (!currentIns) return 'HALT';
+    return currentIns.text.split(' ')[0];
+  }, [currentIns]);
+
+  const expectedReg = useMemo(() => {
+    if (!currentIns) return null;
+    const match = currentIns.text.match(/R([0-7])/);
+    return match ? parseInt(match[1], 10) : null;
+  }, [currentIns]);
+
+  const [selectedReg, setSelectedReg] = useState<number | null>(0);
+
+  useEffect(() => {
+    setSelectedReg(expectedReg);
+  }, [expectedReg]);
+
+  const handleActivateOpcodeGate = (opcodeClicked: string) => {
     if (!currentIns) return;
-    if (isCorrect) {
-      const next = pcIdx + 1;
-      setPcIdx(next);
-      onStepProgress(next);
-      if (next >= instrs.length) {
-        onWin();
-      }
-    } else {
+
+    if (opcodeClicked !== expectedOpcode) {
       onMistake({
         phaseName: 'Ensamblador ISA (Register Switchboard)',
-        stepTitle: `Cableado de Placa Base en PC=${currentIns.pc}`,
-        userAnswer: chosenLabel,
-        whatWentWrong: wrongReason,
-        whatShouldBeDone: `En el ciclo PC=${currentIns.pc} debes conectar el bus y accionar la compuerta exacta "${currentIns.text}" dentro del banco R0–R7.`,
+        stepTitle: `Ciclo de Reloj PC=${currentIns.pc} (Objetivo: ${currentIns.text})`,
+        userAnswer: `Activaste la compuerta lógica [${opcodeClicked}]`,
+        whatWentWrong:
+          opcodeClicked === 'LOAD' && expectedOpcode === 'LOADI'
+            ? 'Activaste LOAD (lectura de celda de memoria RAM) cuando necesitabas cargar un número constante inmediato con LOADI.'
+            : `La compuerta [${opcodeClicked}] no corresponde a la instrucción de máquina requerida en PC=${currentIns.pc} (${currentIns.text}).`,
+        whatShouldBeDone: `Conecta el registro ${expectedReg !== null ? `R${expectedReg}` : 'del sistema'} y pulsa la compuerta [${expectedOpcode}] para emitir "${currentIns.text}".`,
       });
+      return;
+    }
+
+    if (expectedReg !== null && selectedReg !== expectedReg) {
+      onMistake({
+        phaseName: 'Ensamblador ISA (Register Switchboard)',
+        stepTitle: `Asignación de Registro en PC=${currentIns.pc}`,
+        userAnswer: `Conectaste el cable al chip R${selectedReg ?? 'ninguno'} en vez de R${expectedReg}`,
+        whatWentWrong: `Para la instrucción "${currentIns.text}", el asignador de registros seleccionó R${expectedReg}, pero tu cable apunta a R${selectedReg}.`,
+        whatShouldBeDone: `Haz clic primero en el chip [🔌 R${expectedReg}] del banco de registros y luego acciona la compuerta [${expectedOpcode}].`,
+      });
+      return;
+    }
+
+    const next = pcIdx + 1;
+    setPcIdx(next);
+    onStepProgress(next);
+    if (next >= instrs.length) {
+      onWin();
     }
   };
 
   if (!currentIns) return null;
-
-  const isHalt = currentIns.text === 'HALT';
-  const isLoadi = currentIns.text.startsWith('LOADI');
 
   return (
     <div
@@ -1170,105 +1314,85 @@ const RegisterSwitchboardGame: React.FC<{
         gap: '14px',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
-          ⚡ TABLERO DE CABLEADO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc} de {instrs.length - 1}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+          ⚡ TABLERO ELECTRÓNICO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc}: Armar [{currentIns.text}]
+        </span>
+        <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+          1° Conecta el Chip R0–R7 &bull; 2° Pulsa la Compuerta Opcode ISA
         </span>
       </div>
 
-      {/* Banco visual de los 8 chips de registros R0..R7 */}
+      {/* Banco interactivo de los 8 chips de registros R0..R7 */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(8, minmax(52px, 1fr))',
-          gap: '6px',
+          gridTemplateColumns: 'repeat(8, minmax(56px, 1fr))',
+          gap: '8px',
           overflowX: 'auto',
         }}
       >
         {[0, 1, 2, 3, 4, 5, 6, 7].map((r) => {
-          const isUsedHere = currentIns.text.includes(`R${r}`);
+          const isWired = selectedReg === r;
           return (
-            <div
+            <button
               key={r}
+              type="button"
+              onClick={() => setSelectedReg(r)}
               style={{
-                padding: '8px 6px',
+                padding: '10px 6px',
                 borderRadius: '6px',
                 textAlign: 'center',
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                backgroundColor: isUsedHere ? 'rgba(16, 185, 129, 0.25)' : 'rgba(15, 23, 42, 0.7)',
-                border: isUsedHere ? '2px solid var(--green)' : '1px solid var(--line)',
-                color: isUsedHere ? '#FFFFFF' : 'var(--muted)',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                backgroundColor: isWired ? 'rgba(16, 185, 129, 0.28)' : 'rgba(15, 23, 42, 0.75)',
+                border: isWired ? '2px solid var(--green)' : '1px solid var(--line)',
+                color: isWired ? '#FFFFFF' : 'var(--muted)',
+                cursor: 'pointer',
               }}
             >
               🔌 R{r}
-            </div>
+            </button>
           );
         })}
       </div>
 
-      {/* Compuertas de cableado */}
+      {/* Panel de las 9 Compuertas de Opcode ISA */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-          gap: '10px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+          gap: '8px',
         }}
       >
-        <button
-          type="button"
-          onClick={() => handlePatchCable(true, currentIns.text, '')}
-          style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(16, 185, 129, 0.2)',
-            border: '2px solid var(--green)',
-            color: '#FFFFFF',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          ⚡ Enrutar Cable ISA: {currentIns.text}
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            handlePatchCable(
-              false,
-              isHalt
-                ? 'Seguir sin emitir HALT (Desbordar contador PC)'
-                : isLoadi
-                ? 'Cablear LOAD desde celda RAM [0] en vez de constante inmediata LOADI'
-                : 'Cablear hacia registro inexistente R9',
-              isHalt
-                ? 'Olvidaste cerrar el flujo de control con la compuerta HALT (0xFF); la CPU seguiría leyendo memoria vacía.'
-                : isLoadi
-                ? 'Conectaste el cable al bus de memoria RAM (LOAD) en lugar del generador de constantes inmediatas (LOADI).'
-                : 'Intentaste conectar un cable al registro R9, pero el procesador solo posee 8 registros físicos (R0 a R7).'
-            )
-          }
-          style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            border: '1px solid var(--line-strong)',
-            color: 'var(--text)',
-            fontFamily: 'var(--font-mono)',
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          ⚡ Cortocircuito:{' '}
-          {isHalt
-            ? 'Omitir HALT final'
-            : isLoadi
-            ? 'Cablear LOAD R0, [0] (Bus RAM)'
-            : 'Cablear a Registro R9 (Fuera de rango)'}
-        </button>
+        {ISA_OPCODES.map((op) => {
+          const isTarget = op === expectedOpcode;
+          return (
+            <button
+              key={op}
+              type="button"
+              onClick={() => handleActivateOpcodeGate(op)}
+              style={{
+                padding: '10px 12px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: isTarget
+                  ? 'rgba(37, 99, 235, 0.25)'
+                  : 'rgba(15, 23, 42, 0.85)',
+                border: isTarget
+                  ? '2px solid var(--blue-bright)'
+                  : '1px solid var(--line-strong)',
+                color: '#FFFFFF',
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 700,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+              }}
+            >
+              ⚡ {op}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1294,7 +1418,7 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
     setFeedbackModal(null);
   }, [phase.id]);
 
-  // La fase 7 (binary) NO lleva mini-juego por instrucción directa del usuario
+  // La fase 7 (binary) NO lleva mini-juego
   if (phase.id === 'binary') {
     return null;
   }

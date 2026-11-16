@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 
+from compilab.api.limits import MAX_CHARS, MAX_LINES
 from compilab.compiler.assembler import AsmInstr, assemble
 from compilab.compiler.encoder import build_binary_output, encode, format_bytes_hex
 from compilab.compiler.errors import CompileError
@@ -53,6 +54,34 @@ def compile_source(source: str, optimize: bool = True) -> CompileResponse:
     start_time = time.perf_counter()
     phases = _init_phases()
     line_count = len(source.splitlines()) if source else 0
+
+    if line_count > MAX_LINES or len(source) > MAX_CHARS:
+        err = CompileError(
+            code="E-501",
+            kind="limit",
+            phase="input",
+            message=(
+                f"El programa supera los límites permitidos "
+                f"(máx {MAX_LINES} líneas y {MAX_CHARS} caracteres)."
+            ),
+            why=(
+                "El compilador acota el tamaño de entrada para "
+                "garantizar trazas interactivas fluidas."
+            ),
+            hint=f"Reduce el programa a un máximo de {MAX_LINES} líneas.",
+            span=None,
+            step_index=0,
+        )
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return CompileResponse(
+            version=1,
+            ok=False,
+            phases=phases,
+            executable=None,
+            run=None,
+            error=err.to_error_info(),
+            meta=Meta(sourceLength=len(source), lineCount=line_count, elapsedMs=elapsed_ms),
+        )
 
     # 1. Fase léxica
     lex_tracer = Tracer()
