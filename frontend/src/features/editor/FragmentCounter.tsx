@@ -42,8 +42,8 @@ export const FragmentCounter: React.FC<FragmentCounterProps> = ({ fragments, lin
           }}
         >
           {isFragmentLimit
-            ? 'Límite de fragmentos alcanzado (12 máx).'
-            : 'Límite de líneas alcanzado (8 máx).'}
+            ? `Límite de fragmentos alcanzado (${MAX_FRAGMENTS} máx).`
+            : `Límite de líneas alcanzado (${MAX_LINES} máx).`}
         </span>
       )}
     </div>

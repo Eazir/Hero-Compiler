@@ -225,18 +225,18 @@ test('la arena sin traza redirige al editor', () => {
 });
 ```
 
-### FE-2 · Editor de bloques (13–15 nov)
+### FE-2 · Editor de bloques ampliado (Hero-Compiler) (13–15 nov)
 
-**Necesidades.** Que armar un programa sea rápido, claro y difícil de romper.
+**Necesidades.** Que armar programas simples o robustos sea rápido, claro, visualmente despejado y difícil de romper.
 
 **Requisitos**
 
-- Paleta con 7 fragmentos: variable, número, suma, resta, multiplicación, asignación y print.
-- Arrastrar y soltar con `@dnd-kit`; los fragmentos de operación aceptan otros fragmentos en sus ranuras (anidado).
-- Alternativa por teclado: seleccionar un fragmento y pulsar Enter para insertarlo en la ranura activa.
-- Límites de 12 fragmentos y 8 líneas, con contador y mensaje cuando se alcanzan.
+- Paleta con fragmentos: variable, número, suma, resta, multiplicación, negación unaria (`-x`), asignación y print, más misiones predefinidas y modo de edición de código libre.
+- Arrastrar y soltar y acciones rápidas por nodo (envolver en operación, invertir operandos, simplificar) y por línea (mover arriba/abajo, duplicar, alternar asignación/print).
+- Recuadro de edición numérica despejado (`type="text" inputMode="numeric"`, sin barras/flechas de spinner que oculten los dígitos y con ancho adaptable holgado).
+- Límites ampliados a **36 fragmentos** y **20 líneas** para permitir programas más robustos, con contador y mensaje cuando se alcanzan.
 - `toSource(program)` con paréntesis mínimos y `sourceMap`; vista previa del código en tiempo real.
-- Deshacer, limpiar y cargar ejemplo.
+- Deshacer, limpiar y cargar ejemplo/misiones.
 
 **Criterios de aceptación**
 
@@ -534,17 +534,22 @@ test('el resumen sale de la traza', () => {
 });
 ```
 
-### FE-8 · Creatividad: predicción, modo detective y progreso (23–24 nov, recortable)
+### FE-8 · Creatividad Hero-Compiler: 6 Mini-Juegos Arcade (Fases 1–6) y Escritorio/Consola en Fase 7
 
-**Necesidades.** Una capa de juego que refuerce el aprendizaje y se pueda apagar.
+**Necesidades.** Que el usuario viva el proceso interno de las primeras 6 fases del compilador mediante mini-juegos arcade verdaderos y que en la Fase 7 (Binario) inspeccione el binario y ejecute el programa en un escritorio virtual con consola.
 
 **Requisitos**
 
-- `domain/predictions.ts`: funciones que generan preguntas desde la traza. Precedencia: la operación más profunda del AST. Optimización: cuántas instrucciones quedan. Resultado: lo que imprimirá `run.stdout`.
-- `PredictionPrompt` aparece antes de iniciar la fase correspondiente. Acertar suma 20 XP; fallar no resta y explica el porqué con el `explain` de la traza.
-- `useGameStore`: XP, nivel (uno cada 500 XP), logros y modo, con persistencia mediante una envoltura segura de `localStorage`.
-- `DetectiveMode`: llama a `POST /api/mutate`, carga la variante en el editor, pide adivinar la fase donde fallará y compara con `error.phase`.
-- Selector Aprender, Reto o Sin juego; en "Sin juego" no se renderiza nada de este módulo.
+- **Fases 1 a 6 con Mini-Juegos Arcade interactivos** y **Ventana Modal de Diagnóstico (`ErrorFeedbackModal`)** que ante cualquier fallo explica qué error se cometió y qué se debió hacer:
+  1. `lexical` — **🚀 Space Lexer (Navecitas y Disparos)**: Nave controlada en un lienzo espacial que cambia entre 4 cañones de frecuencia (`ID`, `NUM`, `OP/ASSIGN`, `PRINT/NEWLINE`) y dispara proyectiles a los meteoritos con los lexemas del programa.
+  2. `syntactic` — **🕸️ AST Constellation (Conectar Puntos)**: Lienzo estelar interactivo donde el usuario conecta puntos/nodos padres con sus hijos respetando la jerarquía y precedencia de operadores (`*` antes que `+`/`-`).
+  3. `semantic` — **🧭 Symbol Maze (Laberinto de Memoria)**: Laberinto en cuadrícula donde el jugador mueve un dron (`↑` `↓` `←` `→` o clic) para recoger las llaves de declaración de variables antes de abrir las puertas donde dichas variables son leídas.
+  4. `ir` — **🎯 Post-Order Sniper (Tiro al Blanco)**: Campo de tiro con mira telescópica y dianas en movimiento donde el usuario debe disparar a las instrucciones TAC en estricto orden de recorrido postorden.
+  5. `optimization` — **🛡️ Optimizer Tower Defense (Defensa en Cinta Transportadora)**: Las instrucciones TAC avanzan por un carril hacia el núcleo de la CPU y el usuario activa 3 torretas (Propagación Azul, Plegado/Folding Verde y Destructor de Código Muerto Rojo).
+  6. `assembly` — **⚡ Register Switchboard (Tablero de Cableado a Registros `R0`–`R7`)**: Panel electrónico donde se tienden cables desde cada operando hacia los chips de registro `R0`–`R7` y se pulsa la compuerta del opcode ISA.
+- **Fase 7 (`binary`) SIN mini-juego — 🖥️ Escritorio Virtual + Ejecutable + Consola**:
+  - Muestra directamente la rejilla hexadecimal de 8 bytes (`HexView`) junto con el **Escritorio Virtual (`VirtualDesktop`)** que presenta los iconos del binario (`programa.bin`), ensamblador (`programa.asm`) y el ejecutable (`programa.exe`).
+  - Al hacer clic en `programa.exe` y ejecutarlo, se abre la ventana de **Consola (`Console`)** que simula la terminal del sistema operativo e imprime en vivo la salida de la ejecución en la VM (`stdout`, registros y código de salida).
 
 **Criterios de aceptación**
 

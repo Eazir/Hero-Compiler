@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FragmentType } from '../../domain/blocks';
+import { FragmentType, MAX_FRAGMENTS, MAX_LINES } from '../../domain/blocks';
 import { toSource } from '../../domain/serialize';
 import { BlockPath } from '../../domain/sourceMap';
 import { es } from '../../i18n/es';
@@ -45,9 +45,11 @@ export const EditorScreen: React.FC = () => {
     const res = insertFragment(type, slot);
     if (!res.ok) {
       if (res.reason === 'MAX_FRAGMENTS') {
-        setWarningMessage('El fragmento 13 fue rechazado: el límite máximo es de 12 fragmentos.');
+        setWarningMessage(
+          `El fragmento ${MAX_FRAGMENTS + 1} fue rechazado: el límite máximo es de ${MAX_FRAGMENTS} fragmentos.`
+        );
       } else if (res.reason === 'MAX_LINES') {
-        setWarningMessage('No se pueden agregar más de 8 líneas al programa.');
+        setWarningMessage(`No se pueden agregar más de ${MAX_LINES} líneas al programa.`);
       }
     } else {
       setWarningMessage(null);
@@ -62,9 +64,11 @@ export const EditorScreen: React.FC = () => {
     const res = duplicateStatement(index);
     if (!res.ok) {
       if (res.reason === 'MAX_FRAGMENTS') {
-        setWarningMessage('El fragmento 13 fue rechazado: el límite máximo es de 12 fragmentos.');
+        setWarningMessage(
+          `El fragmento ${MAX_FRAGMENTS + 1} fue rechazado: el límite máximo es de ${MAX_FRAGMENTS} fragmentos.`
+        );
       } else if (res.reason === 'MAX_LINES') {
-        setWarningMessage('No se pueden agregar más de 8 líneas al programa.');
+        setWarningMessage(`No se pueden agregar más de ${MAX_LINES} líneas al programa.`);
       }
     } else {
       setWarningMessage(null);
@@ -219,7 +223,7 @@ export const EditorScreen: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-          <Palette onSelectFragment={handleSelectFragment} disabled={fragmentCount >= 12} />
+          <Palette onSelectFragment={handleSelectFragment} disabled={fragmentCount >= MAX_FRAGMENTS} />
           <BlockCanvas
             program={program}
             activeSlot={activeSlot}

@@ -39,9 +39,9 @@ export const es = {
     fixApplied: 'Corrección aplicada.',
   },
   editor: {
-    limits: 'Límites: máx 8 líneas y 12 fragmentos',
-    fragmentLimitReached: 'Has alcanzado el límite máximo de 12 fragmentos.',
-    lineLimitReached: 'Has alcanzado el límite máximo de 8 líneas.',
+    limits: 'Límites ampliados: máx 20 líneas y 36 fragmentos',
+    fragmentLimitReached: 'Has alcanzado el límite máximo de 36 fragmentos.',
+    lineLimitReached: 'Has alcanzado el límite máximo de 20 líneas.',
   },
 } as const;
 

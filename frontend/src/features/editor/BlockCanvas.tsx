@@ -1,5 +1,5 @@
 import React from 'react';
-import { Expr, FragmentType, Program, Stmt, bin, getNodeAtPath, num, v } from '../../domain/blocks';
+import { Expr, FragmentType, MAX_LINES, Program, Stmt, bin, getNodeAtPath, num, v } from '../../domain/blocks';
 import { BlockPath } from '../../domain/sourceMap';
 import { Panel } from '../../ui/Panel';
 
@@ -89,6 +89,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
+              padding: '2px 4px',
               color: 'var(--violet)',
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
@@ -96,7 +97,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             title="Constante numérica editable (haz clic para escribir un número o arrastra otro fragmento)"
           >
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={expr.value}
               aria-label="Editar valor numérico"
               onClick={(e) => {
@@ -104,20 +106,23 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
                 onSelectSlot(path);
               }}
               onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
+                const cleaned = e.target.value.replace(/[^0-9-]/g, '');
+                const val = parseInt(cleaned, 10);
                 onUpdateNode(path, num(isNaN(val) ? 0 : val));
               }}
               style={{
-                width: `${Math.max(2, String(expr.value).length + 1)}ch`,
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--violet)',
+                minWidth: '64px',
+                width: `${Math.max(5, String(expr.value).length + 3)}ch`,
+                backgroundColor: 'rgba(129, 140, 248, 0.16)',
+                border: '1px solid rgba(129, 140, 248, 0.5)',
+                borderRadius: '6px',
+                color: '#FFFFFF',
                 fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 fontSize: '0.95rem',
                 textAlign: 'center',
                 outline: 'none',
-                padding: 0,
+                padding: '4px 10px',
               }}
             />
           </span>
@@ -143,6 +148,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
+              padding: '2px 4px',
               color: 'var(--cyan)',
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
@@ -152,7 +158,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             <input
               type="text"
               value={expr.name}
-              maxLength={8}
+              maxLength={12}
               aria-label="Editar identificador de variable"
               onClick={(e) => {
                 e.stopPropagation();
@@ -163,16 +169,18 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
                 onUpdateNode(path, v(val || 'x'));
               }}
               style={{
-                width: `${Math.max(2, expr.name.length + 1)}ch`,
-                background: 'transparent',
-                border: 'none',
+                minWidth: '58px',
+                width: `${Math.max(4, expr.name.length + 3)}ch`,
+                backgroundColor: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.45)',
+                borderRadius: '6px',
                 color: 'var(--cyan)',
                 fontFamily: 'var(--font-mono)',
                 fontWeight: 700,
                 fontSize: '0.95rem',
                 textAlign: 'center',
                 outline: 'none',
-                padding: 0,
+                padding: '4px 8px',
               }}
             />
           </span>
@@ -308,7 +316,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               <input
                 type="text"
                 value={stmt.name}
-                maxLength={8}
+                maxLength={12}
                 aria-label="Editar identificador asignado"
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
@@ -316,17 +324,18 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
                   onUpdateVarName(idx, val || 'x');
                 }}
                 style={{
-                  width: `${Math.max(2, stmt.name.length + 1)}ch`,
+                  minWidth: '58px',
+                  width: `${Math.max(4, stmt.name.length + 3)}ch`,
                   backgroundColor: 'rgba(56, 189, 248, 0.15)',
                   border: '1px solid var(--cyan)',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   color: 'var(--cyan)',
                   fontFamily: 'var(--font-mono)',
                   fontWeight: 700,
                   fontSize: '0.95rem',
                   textAlign: 'center',
                   outline: 'none',
-                  padding: '2px 4px',
+                  padding: '4px 8px',
                 }}
                 title="Variable de asignación (editable)"
               />
@@ -647,7 +656,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
         )}
 
         {/* Zona para agregar sentencias adicionales */}
-        {program.length > 0 && program.length < 8 && (
+        {program.length > 0 && program.length < MAX_LINES && (
           <div
             style={{
               display: 'flex',

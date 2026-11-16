@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
+  MAX_FRAGMENTS,
+  MAX_LINES,
   Program,
   assign,
   bin,
@@ -15,7 +17,7 @@ import {
 import { toSource } from '../domain/serialize';
 import { pathAt } from '../domain/sourceMap';
 
-describe('FE-2: Editor de bloques, límites y serialización', () => {
+describe('FE-2: Editor de bloques, límites ampliados y serialización', () => {
   const cases: [Program, string][] = [
     [[assign('c', bin('+', v('a'), bin('*', v('b'), n(2))))], 'c = a + b * 2'],
     [[assign('c', bin('*', bin('+', v('a'), v('b')), n(2)))], 'c = (a + b) * 2'],
@@ -32,46 +34,36 @@ describe('FE-2: Editor de bloques, límites y serialización', () => {
     expect(countFragments(canonical)).toBe(12);
   });
 
-  test('rechaza el fragmento 13', () => {
-    expect(canAdd(programWithFragments(12), 'num')).toEqual({
+  test('rechaza agregar más allá del límite ampliado MAX_FRAGMENTS (36)', () => {
+    expect(canAdd(programWithFragments(MAX_FRAGMENTS), 'num')).toEqual({
       ok: false,
       reason: 'MAX_FRAGMENTS',
     });
   });
 
-  test('permite agregar fragmento cuando hay menos de 12', () => {
-    expect(canAdd(programWithFragments(10), 'num')).toEqual({ ok: true });
+  test('permite agregar fragmento cuando hay menos de MAX_FRAGMENTS', () => {
+    expect(canAdd(programWithFragments(12), 'num')).toEqual({ ok: true });
   });
 
-  test('rechaza una 9na sentencia por superar el límite de 8 líneas', () => {
-    const eightLines: Program = [
+  test('rechaza una sentencia adicional al superar el límite ampliado MAX_LINES (20)', () => {
+    const fourLines: Program = [
       assign('a', n(1)),
       assign('b', n(2)),
       assign('c', n(3)),
       assign('d', n(4)),
     ];
-    // Con 4 líneas está ok
-    expect(canAdd(eightLines, 'assign')).toEqual({ ok: true });
+    expect(canAdd(fourLines, 'assign')).toEqual({ ok: true });
 
-    // Armar 8 líneas
-    const fullEightLines: Program = [
-      assign('a', n(1)),
-      assign('b', n(1)),
-      assign('c', n(1)),
-      assign('d', n(1)),
-      assign('e', n(1)),
-      assign('f', n(1)),
-      assign('g', n(1)),
-      assign('h', n(1)),
-    ];
-    expect(canAdd(fullEightLines, 'assign')).toEqual({
+    const fullLines: Program = Array.from({ length: MAX_LINES }, (_, i) =>
+      assign(`v${i}`, n(1))
+    );
+    expect(canAdd(fullLines, 'assign')).toEqual({
       ok: false,
       reason: 'MAX_LINES',
     });
   });
 
   test('el sourceMap ubica la variable d de la línea 3', () => {
-    // a = 5 / b = 3 / c = a + d * 2
     const { sourceMap } = toSource(programWithUndefinedD);
     expect(pathAt(sourceMap, { line: 3, col: 9 })).toEqual([
       2,
@@ -81,4 +73,3 @@ describe('FE-2: Editor de bloques, límites y serialización', () => {
     ]);
   });
 });
-

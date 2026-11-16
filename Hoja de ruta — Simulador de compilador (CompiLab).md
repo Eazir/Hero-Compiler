@@ -1,17 +1,25 @@
-# Hoja de ruta — Simulador de compilador (CompiLab)
+# Hoja de ruta — Simulador de compilador (Hero-Compiler / CompiLab)
 
 Nov 10, 2026 · @David\_Tyr
 
 ## Visión, alcance y supuestos
 
-CompiLab es un simulador que compila programas aritméticos de hasta 8 líneas y anima cada una de las 7 fases, desde los tokens hasta el binario. Se sustenta el viernes 27 de noviembre de 2026; el código vale 60% de la nota y la creatividad se evalúa. Hoy es martes 10: quedan 17 días.
+**Hero-Compiler** (antes CompiLab) es un simulador interactivo y plataforma gamificada que compila programas aritméticos de hasta 20 líneas y 36 fragmentos, animando cada una de las 7 fases desde los tokens hasta el binario. Las fases 1 a 6 incluyen **mini-juegos arcade reales** (navecitas, conectar puntos, laberinto, tiro al blanco, defensa de torres y tablero de cableado de registros) donde el usuario actúa como el compilador y recibe una ventana de diagnóstico (`¿Qué error se cometió?` / `¿Qué se debió hacer?`) si se equivoca, mientras que la **Fase 7 (Binario)** muestra la codificación hexadecimal junto con un **Escritorio Virtual interactivo** donde al hacer clic y ejecutar `programa.exe` se abre una **Consola** con la ejecución real en la máquina virtual. Se sustenta el viernes 27 de noviembre de 2026; el código vale 60% de la nota y la creatividad se evalúa.
 
 **Alcance cerrado**
 
 - Lenguaje MiniArit: enteros de 32 bits con signo, variables, `+`, `−`, `×`, paréntesis, menos unario y `print`.
 - 7 fases: léxico, sintáctico, semántico, código intermedio, optimización, ensamblador y binario. El binario se ejecuta en una máquina virtual propia.
-- 4 pantallas: editor de bloques, arena de compilación, resultado con consola y pantalla de error.
-- Límites de carga: 8 líneas y 12 fragmentos por programa.
+- 6 Mini-Juegos Arcade (Fases 1 a 6):
+  1. **Léxico — Space Lexer (Navecitas y Disparos)**: Nave espacial con cañones por categoría de token que dispara a meteoritos de lexemas.
+  2. **Sintáctico — AST Constellation (Conectar Puntos)**: Red estelar para enlazar operadores padres con operandos hijos respetando precedencia.
+  3. **Semántico — Symbol Maze (Laberinto de Memoria)**: Dron en laberinto 2D que debe recolectar llaves de declaración antes de cruzar puertas de lectura de variables.
+  4. **Código Intermedio — Post-Order Sniper (Tiro al Blanco)**: Mira telescópica que derriba dianas móviles en orden estricto postorden para emitir TAC.
+  5. **Optimización — Optimizer Tower Defense (Defensa en Cinta Transportadora)**: 3 torretas (Propagación, Folding y Láser DCE) sobre el flujo de instrucciones hacia la CPU.
+  6. **Ensamblador — Register Switchboard (Conectar Cables a R0–R7)**: Tablero electrónico para enrutar operandos a los 8 registros y activar opcodes ISA.
+- **Fase 7 (Binario) sin mini-juego — Escritorio y Consola**: Rejilla hexadecimal de 8 bytes acompañada de un escritorio simulado con los iconos del binario (`programa.bin`), código (`programa.asm`) y ejecutable (`programa.exe`); al hacer clic y ejecutarlo se abre una consola con la salida del programa.
+- 4 pantallas: editor de bloques ampliado, arena de compilación (con modo Arcade Hero y modo Simulación 1 a 1), resultado con escritorio/consola y pantalla de error.
+- Límites de carga ampliados: **20 líneas**, **36 fragmentos** y **1000 caracteres** por programa para permitir códigos más robustos, con edición numérica limpia sin flechas/spinners que tapen el número.
 
 **Supuestos**
 

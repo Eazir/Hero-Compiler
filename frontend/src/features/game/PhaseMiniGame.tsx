@@ -1,25 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { PhaseId, PhaseResult } from '../../api/schema';
+import { PhaseResult } from '../../api/schema';
 import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
 import { ErrorFeedbackModal, GameMistakeFeedback } from './ErrorFeedbackModal';
-
-export interface MiniGameOption {
-  id: string;
-  label: string;
-  isCorrect: boolean;
-  wrongReason: string;
-}
-
-export interface MiniGameChallenge {
-  id: string;
-  stepTitle: string;
-  prompt: string;
-  contextCode?: string;
-  correctActionExplain: string;
-  completedBadge: string;
-  options: MiniGameOption[];
-}
 
 interface PhaseMiniGameProps {
   phase: PhaseResult;
@@ -27,564 +10,1330 @@ interface PhaseMiniGameProps {
   onSyncStepIndex?: (stepIdx: number) => void;
 }
 
-const TOKEN_LABELS: Record<string, string> = {
-  ID: 'ID (Identificador de variable)',
-  NUM: 'NUM (Constante numérica entera)',
-  ASSIGN: 'ASSIGN (Operador de asignación "=")',
-  PLUS: 'PLUS (Operador suma "+")',
-  MINUS: 'MINUS (Operador resta "-")',
-  STAR: 'STAR (Operador multiplicación "*")',
-  LPAREN: 'LPAREN (Paréntesis izquierdo "(")',
-  RPAREN: 'RPAREN (Paréntesis derecho ")")',
-  PRINT: 'PRINT (Palabra reservada de salida)',
-  NEWLINE: 'NEWLINE (Fin de sentencia / salto de línea)',
-};
+// ============================================================================
+// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas y Disparos Láser)
+// ============================================================================
+type LaserCannonType = 'ID' | 'NUM' | 'OP' | 'RES';
 
-function buildChallengesForPhase(phase: PhaseResult): MiniGameChallenge[] {
-  const id: PhaseId = phase.id;
-  const output = phase.output || {};
-
-  // 1. FASE LÉXICA: Clasificar cada token del programa
-  if (id === 'lexical') {
-    const rawTokens: Array<{ type: string; lexeme: string; line: number; col: number }> =
-      output.tokens || [];
-    // Filtramos EOF para centrarnos en los tokens reales y limitamos los NEWLINE repetitivos a 1 para fluidez, o incluimos todos los visibles
-    const tokens = rawTokens.filter((t) => t.type !== 'EOF');
-    if (tokens.length === 0) return [];
-
-    const allTypes = ['ID', 'NUM', 'ASSIGN', 'PLUS', 'MINUS', 'STAR', 'PRINT', 'NEWLINE'];
-
-    return tokens.map((tok, idx) => {
-      const displayLexeme = tok.type === 'NEWLINE' ? '\\n (Salto de línea)' : `"${tok.lexeme}"`;
-      const correctType = tok.type;
-      const correctLabel = TOKEN_LABELS[correctType] || correctType;
-
-      // Construir distractores inteligentes según el token
-      const distractors = allTypes
-        .filter((t) => t !== correctType)
-        .sort((a, b) => {
-          if (correctType === 'PRINT' && a === 'ID') return -1;
-          if (correctType === 'ID' && (a === 'PRINT' || a === 'NUM')) return -1;
-          if (correctType === 'ID' && (b === 'PRINT' || b === 'NUM')) return 1;
-          if (correctType === 'NUM' && a === 'ID') return -1;
-          return a.localeCompare(b);
-        })
-        .slice(0, 3);
-
-      const rawOptions: MiniGameOption[] = [
-        {
-          id: correctType,
-          label: correctLabel,
-          isCorrect: true,
-          wrongReason: '',
-        },
-        ...distractors.map((dType) => ({
-          id: dType,
-          label: TOKEN_LABELS[dType] || dType,
-          isCorrect: false,
-          wrongReason:
-            correctType === 'PRINT' && dType === 'ID'
-              ? `Clasificaste ${displayLexeme} como un identificador común (ID), pero 'print' es una palabra reservada del lenguaje MiniArit.`
-              : correctType === 'ID' && dType === 'NUM'
-              ? `Clasificaste ${displayLexeme} como número (NUM), pero comienza con letra y representa una variable.`
-              : `Clasificaste el lexema ${displayLexeme} (línea ${tok.line}, col ${tok.col}) como ${dType}, lo cual no coincide con su categoría léxica.`,
-        })),
-      ];
-
-      // Orden determinista por índice para evitar que siempre sea la primera opción
-      const rotated = [...rawOptions.slice(idx % rawOptions.length), ...rawOptions.slice(0, idx % rawOptions.length)];
-
-      return {
-        id: `lex-${idx}`,
-        stepTitle: `Token #${idx + 1} (Línea ${tok.line}, Col ${tok.col})`,
-        prompt: `El escáner léxico lee el lexema ${displayLexeme}. ¿Qué tipo de Token debes emitir?`,
-        contextCode: `Lexema actual: ${displayLexeme}  [Línea ${tok.line}, Columna ${tok.col}]`,
-        correctActionExplain: `Para el lexema ${displayLexeme} el analizador léxico debe emitir el token ${correctLabel}.`,
-        completedBadge: `${displayLexeme} → ${correctType}`,
-        options: rotated,
-      };
-    });
-  }
-
-  // 2. FASE SINTÁCTICA: Construir los nodos del AST respetando la gramática y precedencia
-  if (id === 'syntactic') {
-    const ast = output.ast;
-    const statements: any[] = ast?.statements || [];
-    const challenges: MiniGameChallenge[] = [];
-
-    statements.forEach((stmt, idx) => {
-      const isAssign = stmt.kind === 'Assign';
-      const stmtDesc = isAssign ? `sentencia de la línea ${stmt.span?.line || idx + 1} (${stmt.name} = ...)` : `sentencia print(...) de la línea ${stmt.span?.line || idx + 1}`;
-
-      challenges.push({
-        id: `syn-stmt-${idx}`,
-        stepTitle: `Sentencia #${idx + 1} del AST`,
-        prompt: `Analizando la ${stmtDesc}: ¿qué nodo raíz de sentencia debe crear el parser descendente recursivo?`,
-        contextCode: isAssign ? `${stmt.name} = <expresión>` : `print(<expresión>)`,
-        correctActionExplain: isAssign
-          ? `Cuando la línea comienza con un identificador seguido de '=', la regla 'assign = ID "=" expr' construye un nodo AssignNode para '${stmt.name}'.`
-          : `Cuando la línea comienza con la palabra reservada 'print', la regla 'print = "print" "(" expr ")"' construye un nodo PrintNode.`,
-        completedBadge: isAssign ? `AssignNode(${stmt.name})` : `PrintNode()`,
-        options: [
-          {
-            id: isAssign ? 'assign' : 'print',
-            label: isAssign ? `AssignNode (Asignación a '${stmt.name}')` : 'PrintNode (Instrucción de salida)',
-            isCorrect: true,
-            wrongReason: '',
-          },
-          {
-            id: isAssign ? 'print' : 'assign',
-            label: isAssign ? 'PrintNode (Instrucción de salida)' : 'AssignNode (Asignación a variable)',
-            isCorrect: false,
-            wrongReason: isAssign
-              ? `Elegiste PrintNode, pero la sentencia tiene la estructura 'ID = expr', no 'print(expr)'.`
-              : `Elegiste AssignNode, pero la sentencia comienza con la palabra reservada 'print' y no modifica ninguna variable.`,
-          },
-          {
-            id: 'binop',
-            label: 'BinOpNode directo sin nodo de sentencia',
-            isCorrect: false,
-            wrongReason:
-              'En la gramática de MiniArit toda línea del programa debe ser una sentencia (AssignNode o PrintNode), nunca una expresión suelta.',
-          },
-        ],
-      });
-
-      // Si la expresión interna es una operación binaria, agregar reto de precedencia/estructura
-      const expr = stmt.expr;
-      if (expr && expr.kind === 'BinOp') {
-        const rootOp = expr.op;
-        const hasRightBin = expr.right?.kind === 'BinOp';
-        const rightOp = hasRightBin ? expr.right.op : null;
-
-        challenges.push({
-          id: `syn-expr-${idx}`,
-          stepTitle: `Árbol de Expresión (Línea ${stmt.span?.line || idx + 1})`,
-          prompt: hasRightBin
-            ? `En la expresión compuesta de la línea ${stmt.span?.line || idx + 1}, hay operadores '${rootOp}' y '${rightOp}'. ¿Cuál debe quedar como nodo RAÍZ superior del subárbol y cuál se evalúa primero en las hojas?`
-            : `Para la operación binaria con '${rootOp}', ¿cómo debe estructurar el parser el nodo BinOpNode?`,
-          contextCode: hasRightBin
-            ? `Operadores detectados: '${rootOp}' y '${rightOp}'`
-            : `Operación binaria '${rootOp}'`,
-          correctActionExplain: hasRightBin
-            ? `Por precedencia de operadores, '${rightOp}' (nivel term/factor) se agrupa más profundo para evaluarse primero, dejando a '${rootOp}' como nodo raíz superior del árbol.`
-            : `El parser construye BinOpNode('${rootOp}') con su operando izquierdo y derecho en niveles inferiores.`,
-          completedBadge: `Árbol BinOp('${rootOp}')`,
-          options: [
-            {
-              id: 'correct-tree',
-              label: hasRightBin
-                ? `Raíz '${rootOp}' arriba y subárbol '${rightOp}' anidado abajo (mayor precedencia)`
-                : `Construir BinOpNode('${rootOp}') con hijos izquierdo y derecho`,
-              isCorrect: true,
-              wrongReason: '',
-            },
-            {
-              id: 'wrong-prec',
-              label: hasRightBin
-                ? `Raíz '${rightOp}' arriba y '${rootOp}' abajo (evaluar '${rootOp}' primero)`
-                : `Colocar los operandos como padres del operador '${rootOp}'`,
-              isCorrect: false,
-              wrongReason: hasRightBin
-                ? `Invertiste la jerarquía del AST: en un árbol sintáctico, los nodos más profundos se evalúan primero. Si pones '${rootOp}' abajo, alterarías la precedencia aritmética.`
-                : `En un AST los operadores son nodos internos y los operandos (números o variables) son sus hijos.`,
-            },
-          ],
-        });
-      }
-    });
-
-    return challenges;
-  }
-
-  // 3. FASE SEMÁNTICA: Tabla de Símbolos y Verificación de Declaraciones
-  if (id === 'semantic') {
-    const symbols: Array<{ name: string; type: string; line: number; uses: number }> =
-      output.symbols || [];
-
-    if (symbols.length === 0) {
-      return [
-        {
-          id: 'sem-empty',
-          stepTitle: 'Verificación de Tabla de Símbolos',
-          prompt: 'El programa no declara variables en memoria. ¿Cuál es el dictamen del analizador semántico?',
-          correctActionExplain: 'Sin variables declaradas ni referenciadas, la tabla de símbolos queda vacía y válida.',
-          completedBadge: '0 variables, 0 errores',
-          options: [
-            {
-              id: 'ok',
-              label: 'Aprobar análisis semántico con 0 símbolos y 0 errores',
-              isCorrect: true,
-              wrongReason: '',
-            },
-            {
-              id: 'err',
-              label: 'Lanzar error semántico E-301 por tabla vacía',
-              isCorrect: false,
-              wrongReason: 'Un programa que solo imprime constantes numéricas es semánticamente válido.',
-            },
-          ],
-        },
-      ];
-    }
-
-    return symbols.map((sym, idx) => {
-      const hasUses = sym.uses > 0;
-      return {
-        id: `sem-${sym.name}-${idx}`,
-        stepTitle: `Símbolo '${sym.name}' (Declarado en línea ${sym.line})`,
-        prompt: `Como analizador semántico, inspeccionas la variable '${sym.name}' (declarada en línea ${sym.line}, usada ${sym.uses} vez/veces). ¿Qué debes registrar en la Tabla de Símbolos?`,
-        contextCode: `Variable: ${sym.name} | Línea declaración: ${sym.line} | Lecturas posteriores: ${sym.uses}`,
-        correctActionExplain: hasUses
-          ? `Debes registrar '${sym.name}' con tipo 'int' (32 bits), línea ${sym.line} y ${sym.uses} uso(s) válido(s) sin advertencias.`
-          : `Debes registrar '${sym.name}' con tipo 'int' en línea ${sym.line} y emitir la advertencia W-301 porque tiene 0 usos posteriores.`,
-        completedBadge: `${sym.name}: int (usos: ${sym.uses})${!hasUses ? ' [W-301]' : ''}`,
-        options: [
-          {
-            id: 'correct',
-            label: hasUses
-              ? `Registrar '${sym.name}' (int, línea ${sym.line}, ${sym.uses} uso(s)) como válida`
-              : `Registrar '${sym.name}' (0 usos) y emitir advertencia W-301 (variable sin usar)`,
-            isCorrect: true,
-            wrongReason: '',
-          },
-          {
-            id: 'wrong-warn',
-            label: hasUses
-              ? `Emitir advertencia W-301 diciendo que '${sym.name}' nunca se usa`
-              : `Marcar '${sym.name}' como usada múltiples veces sin advertencia`,
-            isCorrect: false,
-            wrongReason: hasUses
-              ? `La variable '${sym.name}' sí es leída ${sym.uses} vez/veces en líneas posteriores, por lo que NO debe generar advertencia W-301.`
-              : `La variable '${sym.name}' fue asignada pero nunca se leyó después; el compilador debe advertir código redundante con W-301.`,
-          },
-          {
-            id: 'wrong-e301',
-            label: `Rechazar '${sym.name}' con error fatal E-301 (variable no declarada)`,
-            isCorrect: false,
-            wrongReason: `'${sym.name}' fue correctamente asignada en la línea ${sym.line} antes de cualquier uso; E-301 solo ocurre cuando se lee una variable antes de asignarla.`,
-          },
-        ],
-      };
-    });
-  }
-
-  // 4. FASE CÓDIGO INTERMEDIO (TAC): Emitir las instrucciones en postorden
-  if (id === 'ir') {
-    const instrs: Array<{ index: number; text: string }> = output.instructions || [];
-    return instrs.map((ins, idx) => {
-      const nextInstr = instrs[idx + 1]?.text || 't99 = 0';
-      const prevInstr = idx > 0 ? instrs[idx - 1].text : 't0 = 1 + 1';
-
-      const rawOptions: MiniGameOption[] = [
-        {
-          id: 'correct',
-          label: `Emitir [${idx}]: ${ins.text}`,
-          isCorrect: true,
-          wrongReason: '',
-        },
-        {
-          id: 'premature',
-          label:
-            idx + 1 < instrs.length
-              ? `Saltarse este paso y emitir primero: ${nextInstr}`
-              : `Emitir asignación inversa: 0 = ${ins.text}`,
-          isCorrect: false,
-          wrongReason:
-            idx + 1 < instrs.length
-              ? `Intentaste emitir '${nextInstr}' antes de '${ins.text}'. El generador TAC recorre el AST en postorden: primero debe evaluar los hijos/temporales antes de usarlos.`
-              : `En código de tres direcciones (TAC), el destino siempre va a la izquierda del '=' o después de 'print'.`,
-        },
-        {
-          id: 'duplicate',
-          label: `Re-emitir instrucción redundante: ${prevInstr}`,
-          isCorrect: false,
-          wrongReason: `Cada nodo del AST se traduce exactamente una vez en orden secuencial.`,
-        },
-      ];
-
-      const rotated = [...rawOptions.slice(idx % rawOptions.length), ...rawOptions.slice(0, idx % rawOptions.length)];
-
-      return {
-        id: `ir-${idx}`,
-        stepTitle: `Instrucción TAC [${idx}] de ${instrs.length}`,
-        prompt: `Recorriendo el AST en postorden, ¿cuál es la instrucción #${idx + 1} de Código Intermedio (Tres Direcciones) que debes emitir ahora?`,
-        contextCode:
-          idx === 0
-            ? 'Inicio de generación TAC (0 instrucciones emitidas)'
-            : `Última instrucción emitida: [${idx - 1}] ${instrs[idx - 1].text}`,
-        correctActionExplain: `En el paso #${idx + 1} del recorrido en postorden, corresponde emitir '${ins.text}'.`,
-        completedBadge: `[${idx}] ${ins.text}`,
-        options: rotated,
-      };
-    });
-  }
-
-  // 5. FASE OPTIMIZACIÓN: Aplicar pasadas y obtener el TAC reducido
-  if (id === 'optimization') {
-    const optInstrs: Array<{ index: number; text: string }> = output.instructions || [];
-    const challenges: MiniGameChallenge[] = [];
-
-    // Reto 1: Identificar el orden de pasadas del optimizador
-    challenges.push({
-      id: 'opt-passes',
-      stepTitle: 'Pasadas de Optimización en Punto Fijo',
-      prompt: 'Como optimizador de Hero-Compiler, ¿qué secuencia de pasadas debes aplicar sobre el código intermedio TAC?',
-      contextCode: `Resumen esperado: ${phase.summary}`,
-      correctActionExplain:
-        'El optimizador aplica Propagación de Constantes → Plegado de Constantes (Constant Folding) → Propagación de Copias → Eliminación de Código Muerto (DCE).',
-      completedBadge: 'Pasadas: Prop → Fold → DCE',
-      options: [
-        {
-          id: 'correct-order',
-          label: '1° Propagación de constantes, 2° Plegado aritmético (Folding) y 3° Eliminación de código muerto (DCE)',
-          isCorrect: true,
-          wrongReason: '',
-        },
-        {
-          id: 'dce-first',
-          label: 'Eliminar todas las variables al azar sin propagar ni plegar constantes',
-          isCorrect: false,
-          wrongReason:
-            'Si eliminas variables antes de propagar sus constantes y plegar las operaciones, perderías los valores necesarios para calcular la salida.',
-        },
-      ],
-    });
-
-    // Reto 2+: Seleccionar cada instrucción resultante tras optimizar
-    optInstrs.forEach((ins, idx) => {
-      challenges.push({
-        id: `opt-ins-${idx}`,
-        stepTitle: `Resultado Optimizado [${idx}]`,
-        prompt: `Tras plegar constantes y eliminar temporales muertos, ¿qué instrucción sobrevive en la posición [${idx}]?`,
-        contextCode: `Instrucción optimizada #${idx + 1} de ${optInstrs.length}`,
-        correctActionExplain: `Al evaluar las expresiones constantes en tiempo de compilación, la instrucción resultante es '${ins.text}'.`,
-        completedBadge: `Opt [${idx}]: ${ins.text}`,
-        options: [
-          {
-            id: 'correct',
-            label: `${ins.text}`,
-            isCorrect: true,
-            wrongReason: '',
-          },
-          {
-            id: 'unfolded',
-            label: `t1 = t1 + 0 (conservar temporal muerto)`,
-            isCorrect: false,
-            wrongReason:
-              'La pasada de Eliminación de Código Muerto (DCE) descarta los temporales intermedios que ya fueron plegados.',
-          },
-          {
-            id: 'wrong-val',
-            label: ins.text.startsWith('print ') ? 'print 0 (reiniciar acumulador)' : 'x = 0',
-            isCorrect: false,
-            wrongReason: `El plegado de constantes debe conservar el resultado aritmético exacto del programa (${ins.text}), no sustituirlo por 0.`,
-          },
-        ],
-      });
-    });
-
-    return challenges;
-  }
-
-  // 6. FASE ENSAMBLADOR: Seleccionar las instrucciones ISA y registros R0..R7
-  if (id === 'assembly') {
-    const asmInstrs: Array<{ pc: number; text: string; fromIr?: number | null }> =
-      output.instructions || [];
-
-    return asmInstrs.map((ins, idx) => {
-      const isHalt = ins.text === 'HALT';
-      const isPrint = ins.text.startsWith('PRINT');
-      const isLoadi = ins.text.startsWith('LOADI');
-
-      const rawOptions: MiniGameOption[] = [
-        {
-          id: 'correct',
-          label: `${ins.text}`,
-          isCorrect: true,
-          wrongReason: '',
-        },
-        {
-          id: 'wrong-1',
-          label: isHalt
-            ? 'PRINT R7 (Seguir ejecutando indefinidamente)'
-            : isPrint
-            ? 'STORE [0], R0 (Guardar en memoria en vez de imprimir)'
-            : isLoadi
-            ? 'LOAD R0, [0] (Leer celda de memoria en vez de constante inmediata)'
-            : 'HALT (Detener máquina antes de terminar)',
-          isCorrect: false,
-          wrongReason: isHalt
-            ? 'Al finalizar todas las instrucciones del programa debes emitir HALT (0xFF) para detener el contador de programa (PC).'
-            : isPrint
-            ? 'Se requiere enviar el valor del registro a la salida estándar con PRINT, no guardarlo en memoria con STORE.'
-            : isLoadi
-            ? 'Confundiste LOAD con LOADI: LOAD lee una dirección de memoria [addr], mientras que LOADI carga un número constante inmediato en el registro.'
-            : 'Emitir HALT aquí detendría la máquina virtual antes de completar las instrucciones restantes.',
-        },
-        {
-          id: 'wrong-reg',
-          label: 'Usar registro inexistente R9',
-          isCorrect: false,
-          wrongReason:
-            'La arquitectura ISA de Hero-Compiler solo posee 8 registros numerados de R0 a R7. El registro R9 no existe en el hardware.',
-        },
-      ];
-
-      const rotated = [...rawOptions.slice(idx % rawOptions.length), ...rawOptions.slice(0, idx % rawOptions.length)];
-
-      return {
-        id: `asm-${idx}`,
-        stepTitle: `Ensamblador PC=${ins.pc}`,
-        prompt:
-          ins.fromIr !== null && ins.fromIr !== undefined
-            ? `Traduciendo la instrucción TAC [${ins.fromIr}] en PC=${ins.pc}: ¿qué instrucción de máquina ISA debes emitir?`
-            : `Para cerrar el programa en PC=${ins.pc}: ¿qué instrucción final debe emitir el ensamblador?`,
-        contextCode: `Contador de Programa: PC = ${ins.pc}`,
-        correctActionExplain: `En PC=${ins.pc} se debe emitir '${ins.text}' respetando la arquitectura de 8 registros (R0-R7).`,
-        completedBadge: `PC=${ins.pc}: ${ins.text}`,
-        options: rotated,
-      };
-    });
-  }
-
-  // 7. FASE BINARIO: Codificar cada instrucción en 8 bytes little-endian
-  if (id === 'binary') {
-    const rows: Array<{ offset: number; bytes: string; asm: string }> = output.rows || [];
-
-    return rows.map((row, idx) => {
-      const upperBytes = row.bytes.toUpperCase();
-      const wrongOpcodeBytes = upperBytes.startsWith('02')
-        ? '01' + upperBytes.slice(2)
-        : upperBytes.startsWith('20')
-        ? '03' + upperBytes.slice(2)
-        : '00' + upperBytes.slice(2);
-
-      const rawOptions: MiniGameOption[] = [
-        {
-          id: 'correct',
-          label: `${upperBytes}  (Little-Endian 8B para ${row.asm})`,
-          isCorrect: true,
-          wrongReason: '',
-        },
-        {
-          id: 'wrong-opcode',
-          label: `${wrongOpcodeBytes}  (Opcode incorrecto en byte 0)`,
-          isCorrect: false,
-          wrongReason: `El primer byte (Byte 0) define el Opcode de '${row.asm}'. En la tabla ISA: LOAD=0x01, LOADI=0x02, STORE=0x03, ADD=0x10, SUB=0x11, MUL=0x12, NEG=0x13, PRINT=0x20, HALT=0xFF.`,
-        },
-        {
-          id: 'wrong-size',
-          label: `${upperBytes.slice(0, 11)}  (Trama truncada de 4 bytes)`,
-          isCorrect: false,
-          wrongReason:
-            'En la arquitectura ISA de Hero-Compiler todas las instrucciones tienen un ancho fijo obligatorio de 8 bytes ([opcode, dst, src, 0x00, imm32]).',
-        },
-      ];
-
-      const rotated = [...rawOptions.slice(idx % rawOptions.length), ...rawOptions.slice(0, idx % rawOptions.length)];
-
-      return {
-        id: `bin-${idx}`,
-        stepTitle: `Codificación en Offset +0x${row.offset.toString(16).padStart(2, '0').toUpperCase()}`,
-        prompt: `Codifica la instrucción ensamblador '${row.asm}' en su trama binaria de 8 bytes (formato [opcode, dst, src, 0x00, imm32 little-endian]):`,
-        contextCode: `Instrucción: ${row.asm}  |  Offset: +${row.offset} bytes`,
-        correctActionExplain: `La instrucción '${row.asm}' se codifica en 8 bytes little-endian como: ${upperBytes}.`,
-        completedBadge: `+0x${row.offset.toString(16).padStart(2, '0').toUpperCase()}: ${upperBytes}`,
-        options: rotated,
-      };
-    });
-  }
-
-  return [];
+interface CannonDef {
+  id: LaserCannonType;
+  name: string;
+  keyHint: string;
+  color: string;
+  desc: string;
 }
 
-export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
-  phase,
-  onCompletePhase,
-  onSyncStepIndex,
-}) => {
-  const challenges = useMemo(() => buildChallengesForPhase(phase), [phase]);
+const CANNONS: CannonDef[] = [
+  {
+    id: 'ID',
+    name: '⚡ Cañón ID (Identificador de variable)',
+    keyHint: '[1]',
+    color: '#38BDF8',
+    desc: 'Variables como a, b, c, x',
+  },
+  {
+    id: 'NUM',
+    name: '🟣 Cañón NUM (Constante numérica entera)',
+    keyHint: '[2]',
+    color: '#818CF8',
+    desc: 'Números enteros como 5, 3, 2',
+  },
+  {
+    id: 'OP',
+    name: '🟠 Cañón OPERADOR (=, +, -, *, paréntesis)',
+    keyHint: '[3]',
+    color: '#F59E0B',
+    desc: 'Símbolos =, +, -, *, (, )',
+  },
+  {
+    id: 'RES',
+    name: '🟢 Cañón RESERVADO (print / salto de línea)',
+    keyHint: '[4]',
+    color: '#10B981',
+    desc: 'Palabra reservada print y fin de línea',
+  },
+];
+
+function mapTokenToCannon(tokenType: string): LaserCannonType {
+  if (tokenType === 'ID') return 'ID';
+  if (tokenType === 'NUM') return 'NUM';
+  if (tokenType === 'PRINT' || tokenType === 'NEWLINE') return 'RES';
+  return 'OP';
+}
+
+const SpaceLexerGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const tokens: Array<{ type: string; lexeme: string; line: number; col: number }> = useMemo(() => {
+    const raw = phase.output?.tokens || [];
+    return raw.filter((t: any) => t.type !== 'EOF');
+  }, [phase]);
+
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [completedBadges, setCompletedBadges] = useState<string[]>([]);
-  const [mistakesCount, setMistakesCount] = useState(0);
-  const [feedbackModal, setFeedbackModal] = useState<GameMistakeFeedback | null>(null);
+  const [selectedCannon, setSelectedCannon] = useState<LaserCannonType>('ID');
+  const [shipLane, setShipLane] = useState(1);
+  const [laserShotAnim, setLaserShotAnim] = useState<number | null>(null);
+  const [destroyedTokens, setDestroyedTokens] = useState<string[]>([]);
 
-  // Reiniciar el mini-juego cuando cambia la fase activa
+  const activeToken = tokens[currentIdx];
+  const targetLane = currentIdx % 4;
+
   useEffect(() => {
-    setCurrentIdx(0);
-    setCompletedBadges([]);
-    setMistakesCount(0);
-    setFeedbackModal(null);
-  }, [phase.id]);
+    setShipLane(targetLane);
+  }, [targetLane]);
 
-  const isCompleted = challenges.length > 0 && currentIdx >= challenges.length;
-  const currentChallenge = !isCompleted ? challenges[currentIdx] : null;
+  const handleFireAtMeteor = (cannonToUse: LaserCannonType, laneClicked?: number) => {
+    if (!activeToken) return;
+    if (laneClicked !== undefined) setShipLane(laneClicked);
 
-  const handleSelectOption = (opt: MiniGameOption) => {
-    if (!currentChallenge) return;
+    const expectedCannon = mapTokenToCannon(activeToken.type);
+    const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : activeToken.lexeme;
 
-    if (opt.isCorrect) {
-      const nextBadges = [...completedBadges, currentChallenge.completedBadge];
-      setCompletedBadges(nextBadges);
+    if (cannonToUse === expectedCannon) {
+      setLaserShotAnim(targetLane);
+      setTimeout(() => setLaserShotAnim(null), 220);
+
+      const nextList = [...destroyedTokens, `${lexDisplay}:${activeToken.type}`];
+      setDestroyedTokens(nextList);
       const nextIdx = currentIdx + 1;
       setCurrentIdx(nextIdx);
-      if (onSyncStepIndex && phase.steps.length > 0) {
-        const mappedStep = Math.min(phase.steps.length - 1, nextIdx);
-        onSyncStepIndex(mappedStep);
+      onStepProgress(nextIdx);
+      if (nextIdx >= tokens.length) {
+        onWin();
       }
     } else {
-      setMistakesCount((m) => m + 1);
-      setFeedbackModal({
-        phaseName: phase.name,
-        stepTitle: currentChallenge.stepTitle,
-        userAnswer: opt.label,
-        whatWentWrong: opt.wrongReason,
-        whatShouldBeDone: currentChallenge.correctActionExplain,
+      const chosenDef = CANNONS.find((c) => c.id === cannonToUse)!;
+      const rightDef = CANNONS.find((c) => c.id === expectedCannon)!;
+      onMistake({
+        phaseName: 'Análisis Léxico (Space Lexer)',
+        stepTitle: `Meteorito #${currentIdx + 1}: "${lexDisplay}" (Línea ${activeToken.line}, Col ${activeToken.col})`,
+        userAnswer: `Disparaste con ${chosenDef.name}`,
+        whatWentWrong: `El rayo rebotó en el escudo del meteorito "${lexDisplay}" porque no pertenece a la categoría ${chosenDef.id} (${chosenDef.desc}).`,
+        whatShouldBeDone: `Para desintegrar el lexema "${lexDisplay}" (token ${activeToken.type}), debes sintonizar tu nave con ${rightDef.name} y disparar.`,
       });
     }
   };
 
-  if (challenges.length === 0) {
-    return (
-      <div style={{ padding: '16px', color: 'var(--muted)' }}>
-        No hay retos interactivos para esta fase.
+  if (!activeToken) return null;
+
+  const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n (Fin línea)' : `"${activeToken.lexeme}"`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Radar espacial con meteoritos y nave */}
+      <div
+        style={{
+          position: 'relative',
+          minHeight: '270px',
+          borderRadius: 'var(--radius-md)',
+          background:
+            'radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.28), rgba(6, 11, 25, 0.96) 75%)',
+          border: '1px solid var(--blue-bright)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Barra de estado del escuadrón espacial */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
+            🚀 MISIÓN SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length}
+          </span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+            1° Elige el Cañón Láser abajo &bull; 2° Dispara al Meteorito
+          </span>
+        </div>
+
+        {/* 4 Carriles Espaciales con el Meteorito Activo */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px',
+            margin: '18px 0',
+            alignItems: 'center',
+          }}
+        >
+          {[0, 1, 2, 3].map((lane) => {
+            const hasMeteor = lane === targetLane;
+            const isShipHere = lane === shipLane;
+
+            return (
+              <div
+                key={lane}
+                onClick={() => {
+                  setShipLane(lane);
+                  if (hasMeteor) handleFireAtMeteor(selectedCannon, lane);
+                }}
+                style={{
+                  minHeight: '145px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: hasMeteor
+                    ? '1px dashed rgba(56, 189, 248, 0.6)'
+                    : '1px dashed rgba(255, 255, 255, 0.08)',
+                  backgroundColor: hasMeteor ? 'rgba(37, 99, 235, 0.12)' : 'rgba(15, 23, 42, 0.35)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 8px',
+                  cursor: hasMeteor ? 'crosshair' : 'pointer',
+                  position: 'relative',
+                }}
+              >
+                {/* Meteorito en este carril */}
+                {hasMeteor ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFireAtMeteor(selectedCannon, lane);
+                    }}
+                    aria-label={`Disparar al meteorito ${lexDisplay}`}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '999px',
+                      background: 'linear-gradient(135deg, #1E293B, #0F172A)',
+                      border: '2px solid var(--blue-bright)',
+                      boxShadow: '0 0 18px rgba(56, 189, 248, 0.45)',
+                      color: '#FFFFFF',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 800,
+                      fontSize: '1rem',
+                      cursor: 'crosshair',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>☄️</span>
+                    <span>{lexDisplay}</span>
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)' }}>∙ ∙ ∙</span>
+                )}
+
+                {/* Rayo láser animado */}
+                {isShipHere && (
+                  <div
+                    style={{
+                      width: '4px',
+                      height: '38px',
+                      borderRadius: '2px',
+                      backgroundColor:
+                        CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8',
+                      boxShadow: `0 0 12px ${
+                        CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8'
+                      }`,
+                      opacity: laserShotAnim === lane ? 1 : 0.45,
+                    }}
+                  />
+                )}
+
+                {/* Nave espacial en la base del carril */}
+                <div
+                  style={{
+                    fontSize: isShipHere ? '1.65rem' : '1.1rem',
+                    opacity: isShipHere ? 1 : 0.3,
+                    transform: isShipHere ? 'scale(1.1)' : 'scale(0.9)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isShipHere ? '🛸' : '▲'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botón grande de Disparo Directo */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Button
+            variant="primary"
+            onClick={() => handleFireAtMeteor(selectedCannon, targetLane)}
+          >
+            🔫 Disparar {CANNONS.find((c) => c.id === selectedCannon)?.id} contra Meteorito {lexDisplay}
+          </Button>
+        </div>
       </div>
-    );
-  }
+
+      {/* Selector de los 4 Cañones Láser de la Nave (permite también disparar directo al hacer clic) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gap: '10px',
+        }}
+      >
+        {CANNONS.map((cannon) => {
+          const isSelected = selectedCannon === cannon.id;
+          return (
+            <button
+              key={cannon.id}
+              type="button"
+              onClick={() => {
+                setSelectedCannon(cannon.id);
+                handleFireAtMeteor(cannon.id, targetLane);
+              }}
+              style={{
+                textAlign: 'left',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: isSelected
+                  ? 'rgba(37, 99, 235, 0.25)'
+                  : 'rgba(15, 23, 42, 0.85)',
+                border: `2px solid ${isSelected ? cannon.color : 'var(--line)'}`,
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <strong style={{ fontSize: '0.86rem', color: cannon.color }}>
+                {cannon.name}
+              </strong>
+              <span style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>
+                {cannon.desc} (Clic para equipar y disparar)
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 2. FASE SINTÁCTICA: 🕸️ AST CONSTELLATION (Conectar Puntos y Nodos Estelares)
+// ============================================================================
+interface StarLink {
+  id: string;
+  parentLabel: string;
+  childLabel: string;
+  ruleExplain: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+const AstConstellationGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const links: StarLink[] = useMemo(() => {
+    const stmts: any[] = phase.output?.ast?.statements || [];
+    const result: StarLink[] = [];
+
+    stmts.forEach((stmt, idx) => {
+      const isAssign = stmt.kind === 'Assign';
+      const parentName = isAssign ? `Assign(${stmt.name} =)` : `Print(print)`;
+      const expr = stmt.expr;
+
+      if (expr?.kind === 'BinOp') {
+        // Si tiene subexpresión derecha binaria (ej. a + b * 2), primero se debe conectar la de mayor precedencia (*)
+        if (expr.right?.kind === 'BinOp') {
+          const innerOp = expr.right.op;
+          const rLeft = expr.right.left?.name ?? expr.right.left?.value ?? 'izq';
+          const rRight = expr.right.right?.name ?? expr.right.right?.value ?? 'der';
+          result.push({
+            id: `link-inner-${idx}`,
+            parentLabel: `Nodo '${innerOp}' ( Línea ${idx + 1} )`,
+            childLabel: `Hijos (${rLeft}, ${rRight})`,
+            ruleExplain: `Por precedencia de operadores, '${innerOp}' (nivel term) debe conectar primero a sus operandos (${rLeft} y ${rRight}) antes de unirse a '${expr.op}'.`,
+            x1: 68,
+            y1: 55,
+            x2: 80,
+            y2: 85,
+          });
+        }
+
+        const leftLabel = expr.left?.name ?? expr.left?.value ?? 'expr_izq';
+        const rightLabel =
+          expr.right?.kind === 'BinOp'
+            ? `Subárbol (${expr.right.op})`
+            : expr.right?.name ?? expr.right?.value ?? 'expr_der';
+
+        result.push({
+          id: `link-bin-${idx}`,
+          parentLabel: `Nodo '${expr.op}' ( Línea ${idx + 1} )`,
+          childLabel: `Operandos (${leftLabel} y ${rightLabel})`,
+          ruleExplain: `El operador '${expr.op}' enlaza como padre a '${leftLabel}' por la izquierda y a '${rightLabel}' por la derecha.`,
+          x1: 50,
+          y1: 35,
+          x2: 68,
+          y2: 55,
+        });
+
+        result.push({
+          id: `link-stmt-${idx}`,
+          parentLabel: `${parentName} [Línea ${idx + 1}]`,
+          childLabel: `Raíz de expresión '${expr.op}'`,
+          ruleExplain: `La sentencia ${parentName} conecta su ranura de expresión con el nodo raíz '${expr.op}'.`,
+          x1: 30,
+          y1: 18,
+          x2: 50,
+          y2: 35,
+        });
+      } else {
+        const valLabel =
+          expr?.kind === 'Neg'
+            ? `Neg(-${expr.operand?.name ?? expr.operand?.value ?? 'x'})`
+            : expr?.name ?? expr?.value ?? 'valor';
+        result.push({
+          id: `link-simple-${idx}`,
+          parentLabel: `${parentName} [Línea ${idx + 1}]`,
+          childLabel: `Operando '${valLabel}'`,
+          ruleExplain: `En la línea ${idx + 1}, el nodo de sentencia ${parentName} se conecta directamente con su hijo '${valLabel}'.`,
+          x1: 25 + (idx * 18) % 50,
+          y1: 22,
+          x2: 35 + (idx * 18) % 50,
+          y2: 72,
+        });
+      }
+    });
+
+    return result;
+  }, [phase]);
+
+  const [connectedCount, setConnectedCount] = useState(0);
+  const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
+
+  const currentLink = links[connectedCount];
+
+  const handleConnectAttempt = (targetChoice: 'correct' | 'invert-hierarchy' | 'skip-precedence') => {
+    if (!currentLink) return;
+
+    if (targetChoice === 'correct') {
+      const next = connectedCount + 1;
+      setConnectedCount(next);
+      setSelectedOrigin(null);
+      onStepProgress(next);
+      if (next >= links.length) {
+        onWin();
+      }
+    } else if (targetChoice === 'invert-hierarchy') {
+      onMistake({
+        phaseName: 'Análisis Sintáctico (AST Constellation)',
+        stepTitle: `Conexión Estelar #${connectedCount + 1}`,
+        userAnswer: `Intentaste conectar los operandos hojas como padres de ${currentLink.parentLabel}`,
+        whatWentWrong:
+          'Cortocircuito en el AST: colocaste un literal/variable como nodo padre de un operador o sentencia. Las hojas no pueden tener hijos en el árbol sintáctico.',
+        whatShouldBeDone: currentLink.ruleExplain,
+      });
+    } else {
+      onMistake({
+        phaseName: 'Análisis Sintáctico (AST Constellation)',
+        stepTitle: `Conexión Estelar #${connectedCount + 1}`,
+        userAnswer: 'Intentaste saltar la precedencia conectando directamente la raíz sin agrupar el subárbol',
+        whatWentWrong:
+          'Rompiste el orden de precedencia gramatical (term vs expr). Si conectas el operador de menor precedencia primero, el árbol evaluaría la operación equivocada.',
+        whatShouldBeDone: currentLink.ruleExplain,
+      });
+    }
+  };
+
+  if (!currentLink) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Mapa Estelar SVG de Conectar Puntos */}
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.16), #070d19 80%)',
+          border: '1px solid var(--green)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>
+            🕸️ CONSTELACIÓN AST — Enlace {connectedCount + 1} de {links.length}
+          </span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+            Haz clic en el Nodo Padre y luego conecta el cable con su Nodo Hijo
+          </span>
+        </div>
+
+        <svg
+          viewBox="0 0 100 100"
+          style={{
+            width: '100%',
+            height: '180px',
+            backgroundColor: 'rgba(6, 11, 23, 0.75)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--line)',
+          }}
+        >
+          {/* Cables ya conectados */}
+          {links.slice(0, connectedCount).map((lnk) => (
+            <g key={lnk.id}>
+              <line
+                x1={lnk.x1}
+                y1={lnk.y1}
+                x2={lnk.x2}
+                y2={lnk.y2}
+                stroke="#10B981"
+                strokeWidth="1.6"
+              />
+              <circle cx={lnk.x1} cy={lnk.y1} r="3.5" fill="#10B981" />
+              <circle cx={lnk.x2} cy={lnk.y2} r="3.5" fill="#38BDF8" />
+            </g>
+          ))}
+
+          {/* Cable guía punteado del enlace actual */}
+          <line
+            x1={currentLink.x1}
+            y1={currentLink.y1}
+            x2={currentLink.x2}
+            y2={currentLink.y2}
+            stroke="#38BDF8"
+            strokeWidth="1.2"
+            strokeDasharray="2.5 2.5"
+          />
+
+          {/* Punto Padre Activo */}
+          <circle
+            cx={currentLink.x1}
+            cy={currentLink.y1}
+            r="5.5"
+            fill={selectedOrigin ? '#10B981' : '#2563EB'}
+            stroke="#FFFFFF"
+            strokeWidth="1"
+            style={{ cursor: 'pointer' }}
+            onClick={() => setSelectedOrigin(currentLink.parentLabel)}
+          />
+          <text
+            x={currentLink.x1}
+            y={Math.max(10, currentLink.y1 - 8)}
+            fill="#FFFFFF"
+            fontSize="4.2"
+            textAnchor="middle"
+            fontFamily="monospace"
+          >
+            PADRE: {currentLink.parentLabel}
+          </text>
+
+          {/* Punto Hijo Destino */}
+          <circle
+            cx={currentLink.x2}
+            cy={currentLink.y2}
+            r="5.5"
+            fill="#10B981"
+            stroke="#FFFFFF"
+            strokeWidth="1"
+            style={{ cursor: 'pointer' }}
+            onClick={() => handleConnectAttempt('correct')}
+          />
+          <text
+            x={currentLink.x2}
+            y={Math.min(96, currentLink.y2 + 11)}
+            fill="#34D399"
+            fontSize="4.2"
+            textAnchor="middle"
+            fontFamily="monospace"
+          >
+            HIJO: {currentLink.childLabel}
+          </text>
+        </svg>
+
+        {/* Controles de Conexión de Nodos */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+            gap: '10px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleConnectAttempt('correct')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '2px solid var(--green)',
+              color: '#FFFFFF',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.84rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            🔌 Conectar Padre [{currentLink.parentLabel}] ➔ Hijo [{currentLink.childLabel}]
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleConnectAttempt('invert-hierarchy')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              border: '1px solid var(--line-strong)',
+              color: 'var(--text)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.84rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            🔌 Conectar al revés: Hijo [{currentLink.childLabel}] como padre de [{currentLink.parentLabel}]
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleConnectAttempt('skip-precedence')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              border: '1px solid var(--line-strong)',
+              color: 'var(--text)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.84rem',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            🔌 Romper precedencia: Enlazar operandos sin respetar jerarquía EBNF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D del Guardián de Memoria)
+// ============================================================================
+const SymbolMazeGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const symbols: Array<{ name: string; type: string; line: number; uses: number }> = useMemo(
+    () => phase.output?.symbols || [],
+    [phase]
+  );
+
+  // Construimos una ruta en laberinto 5x5 donde el dron debe recoger primero las llaves de declaración y luego abrir las puertas de uso
+  const [dronePos, setDronePos] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
+  const [collectedKeys, setCollectedKeys] = useState<string[]>([]);
+  const [unlockedGates, setUnlockedGates] = useState<string[]>([]);
+
+  const firstVar = symbols[0]?.name || 'a';
+  const secondVar = symbols[1]?.name || firstVar;
+
+  // Mapa 5x5:
+  // (0,0) Inicio -> (0,1) Llave 1 -> (0,2) Pared -> (0,3) Trampa E-301
+  // (1,1) Pasillo -> (1,2) Llave 2 -> (1,3) Puerta Uso 1 -> (1,4) Meta
+  const moveDroneTo = (r: number, c: number) => {
+    if (r < 0 || r > 2 || c < 0 || c > 4) return;
+
+    // Paredes del laberinto
+    if ((r === 0 && c === 2) || (r === 2 && c === 1) || (r === 2 && c === 3)) {
+      return;
+    }
+
+    // Trampa de variable no declarada en (0, 3) o (2, 2)
+    if (r === 0 && c === 3) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze)',
+        stepTitle: 'Casilla de Trampa: Variable Fantasma No Declarada (E-301)',
+        userAnswer: 'Entraste al sector de memoria de una variable sin declaración previa',
+        whatWentWrong:
+          'Intentaste leer una dirección de memoria que no existe en la Tabla de Símbolos, disparando el error semántico E-301.',
+        whatShouldBeDone: `Recorre el camino seguro del laberinto recogiendo primero las llaves de declaración (🔑 ${firstVar}, 🔑 ${secondVar}) antes de cruzar las compuertas de lectura.`,
+      });
+      return;
+    }
+
+    // Compuerta de lectura en (1, 3): exige haber recogido las llaves primero
+    if (r === 1 && c === 3 && !collectedKeys.includes(secondVar)) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze)',
+        stepTitle: `Compuerta de Lectura de '${secondVar}'`,
+        userAnswer: `Intentaste cruzar la puerta 'Usar ${secondVar}' sin tener la llave 'Declarar ${secondVar}'`,
+        whatWentWrong: `En MiniArit no puedes usar la variable '${secondVar}' en una expresión si todavía no ha sido registrada en la Tabla de Símbolos.`,
+        whatShouldBeDone: `Pasa primero por la casilla 🔑 Declarar '${secondVar}' para registrarla en la Tabla de Símbolos y luego cruza esta compuerta.`,
+      });
+      return;
+    }
+
+    // Meta en (1, 4): exige haber abierto la compuerta de lectura
+    if (r === 1 && c === 4 && !unlockedGates.includes(firstVar)) {
+      onMistake({
+        phaseName: 'Análisis Semántico (Symbol Maze)',
+        stepTitle: 'Portal de Salida Semántica',
+        userAnswer: 'Intentaste salir del laberinto sin verificar las lecturas de variables',
+        whatWentWrong:
+          'El analizador semántico no puede dar por terminado el programa sin antes declarar y verificar todas las variables en la Tabla de Símbolos.',
+        whatShouldBeDone: `Recoge primero 🔑 Declarar '${firstVar}', luego 🔑 Declarar '${secondVar}', cruza 🚪 Usar '${firstVar}' y finalmente entra al Portal 🏁.`,
+      });
+      return;
+    }
+
+    setDronePos({ r, c });
+
+    if (r === 0 && c === 1 && !collectedKeys.includes(firstVar)) {
+      const next = [...collectedKeys, firstVar];
+      setCollectedKeys(next);
+      onStepProgress(1);
+    }
+    if (r === 1 && c === 2 && !collectedKeys.includes(secondVar)) {
+      const next = [...collectedKeys, secondVar];
+      setCollectedKeys(next);
+      onStepProgress(2);
+    }
+    if (r === 1 && c === 3 && !unlockedGates.includes(firstVar)) {
+      setUnlockedGates([...unlockedGates, firstVar]);
+      onStepProgress(3);
+    }
+    if (r === 1 && c === 4) {
+      onWin();
+    }
+  };
+
+  // Paso automático guiado para avanzar un paso del laberinto con 1 clic
+  const handleAutoStep = () => {
+    if (!collectedKeys.includes(firstVar)) {
+      moveDroneTo(0, 1);
+    } else if (!collectedKeys.includes(secondVar)) {
+      moveDroneTo(1, 2);
+    } else if (!unlockedGates.includes(firstVar)) {
+      moveDroneTo(1, 3);
+    } else {
+      moveDroneTo(1, 4);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(10, 20, 38, 0.9)',
+          border: '1px solid var(--blue-bright)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
+            🧭 LABERINTO DE MEMORIA (SYMBOL MAZE) — Llaves en Tabla: [{collectedKeys.join(', ') || 'ninguna'}]
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button variant="primary" size="sm" onClick={handleAutoStep}>
+              🤖 Avanzar Dron por Ruta Válida
+            </Button>
+          </div>
+        </div>
+
+        {/* Cuadrícula 3x5 del Laberinto */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: '8px',
+          }}
+        >
+          {[0, 1, 2].map((r) =>
+            [0, 1, 2, 3, 4].map((c) => {
+              const isDrone = dronePos.r === r && dronePos.c === c;
+              const isWall = (r === 0 && c === 2) || (r === 2 && c === 1) || (r === 2 && c === 3);
+              const isTrap = r === 0 && c === 3;
+              const isKey1 = r === 0 && c === 1;
+              const isKey2 = r === 1 && c === 2;
+              const isGate = r === 1 && c === 3;
+              const isGoal = r === 1 && c === 4;
+
+              let cellLabel = 'Pasillo';
+              let icon = '·';
+              if (isWall) {
+                cellLabel = 'Muro';
+                icon = '🧱';
+              } else if (isTrap) {
+                cellLabel = 'Trampa E-301 (Usar var sin declarar)';
+                icon = '☠️';
+              } else if (isKey1) {
+                cellLabel = `Declarar ${firstVar}`;
+                icon = collectedKeys.includes(firstVar) ? '✅' : '🔑';
+              } else if (isKey2) {
+                cellLabel = `Declarar ${secondVar}`;
+                icon = collectedKeys.includes(secondVar) ? '✅' : '🔑';
+              } else if (isGate) {
+                cellLabel = `Puerta: Usar ${secondVar}`;
+                icon = unlockedGates.includes(firstVar) ? '🔓' : '🚪';
+              } else if (isGoal) {
+                cellLabel = 'Salida Semántica';
+                icon = '🏁';
+              }
+
+              return (
+                <button
+                  key={`${r}-${c}`}
+                  type="button"
+                  disabled={isWall}
+                  onClick={() => moveDroneTo(r, c)}
+                  style={{
+                    minHeight: '68px',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: isWall
+                      ? 'rgba(5, 10, 20, 0.95)'
+                      : isDrone
+                      ? 'rgba(16, 185, 129, 0.28)'
+                      : isTrap
+                      ? 'rgba(244, 63, 94, 0.14)'
+                      : 'rgba(19, 36, 66, 0.75)',
+                    border: isDrone
+                      ? '2px solid var(--green)'
+                      : isTrap
+                      ? '1px dashed var(--red)'
+                      : '1px solid var(--line)',
+                    color: '#FFFFFF',
+                    cursor: isWall ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  <span style={{ fontSize: '1.3rem' }}>{isDrone ? '🤖' : icon}</span>
+                  <span style={{ textAlign: 'center', lineHeight: 1.15 }}>{cellLabel}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 4. FASE CÓDIGO INTERMEDIO (TAC): 🎯 POST-ORDER SNIPER (Tiro al Blanco)
+// ============================================================================
+const PostOrderSniperGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const instrs: Array<{ index: number; text: string }> = useMemo(
+    () => phase.output?.instructions || [],
+    [phase]
+  );
+
+  const [shotIndex, setShotIndex] = useState(0);
+
+  const currentTarget = instrs[shotIndex];
+  const prematureTarget =
+    shotIndex + 1 < instrs.length
+      ? instrs[shotIndex + 1].text
+      : 'print t99 (temporal aún no calculado)';
+
+  const handleShoot = (isCorrectTarget: boolean, labelShot: string) => {
+    if (!currentTarget) return;
+    if (isCorrectTarget) {
+      const next = shotIndex + 1;
+      setShotIndex(next);
+      onStepProgress(next);
+      if (next >= instrs.length) {
+        onWin();
+      }
+    } else {
+      onMistake({
+        phaseName: 'Código Intermedio TAC (Post-Order Sniper)',
+        stepTitle: `Diana en Postorden #${shotIndex + 1} de ${instrs.length}`,
+        userAnswer: `Disparaste con la mira telescópica a: "${labelShot}"`,
+        whatWentWrong: `Disparaste fuera de orden. En generación de código de tres direcciones (TAC), no puedes emitir "${labelShot}" antes de haber emitido "${currentTarget.text}".`,
+        whatShouldBeDone: `Apunta y dispara primero a la diana [${shotIndex}] "${currentTarget.text}" siguiendo el recorrido en postorden del AST.`,
+      });
+    }
+  };
+
+  if (!currentTarget) return null;
 
   return (
     <div
-      role="region"
-      aria-label={`Mini-juego de ${phase.name}`}
       style={{
+        padding: '16px',
+        borderRadius: 'var(--radius-md)',
+        background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 80%)',
+        border: '1px solid var(--blue-bright)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
-        padding: '18px',
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(37, 99, 235, 0.1))',
-        border: '1px solid rgba(16, 185, 129, 0.35)',
-        borderRadius: 'var(--radius-lg)',
+        gap: '14px',
       }}
     >
-      {/* Cabecera del Mini-Juego */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
+          🎯 CAMPO DE TIRO POST-ORDER SNIPER — Diana {shotIndex + 1} de {instrs.length}
+        </span>
+        <span style={{ fontSize: '0.78rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+          Apunta con la mira ⊕ a la instrucción TAC que toca emitir en postorden
+        </span>
+      </div>
+
+      {/* Carriles de Dianas Móviles */}
       <div
         style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+          gap: '12px',
+          padding: '12px',
+          backgroundColor: 'rgba(6, 11, 23, 0.75)',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid var(--line)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleShoot(true, currentTarget.text)}
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(15, 23, 42, 0.9))',
+            border: '2px solid var(--green)',
+            color: '#FFFFFF',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 800,
+            fontSize: '0.95rem',
+            cursor: 'crosshair',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>🎯 Diana: {currentTarget.text}</span>
+          <span style={{ color: 'var(--green)' }}>⊕ DISPARAR</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleShoot(false, prematureTarget)}
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            border: '2px dashed var(--amber)',
+            color: 'var(--text)',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            fontSize: '0.92rem',
+            cursor: 'crosshair',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>🎯 Diana Señuelo (Preorden): {prematureTarget}</span>
+          <span style={{ color: 'var(--amber)' }}>⊕ DISPARAR</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 5. FASE OPTIMIZACIÓN: 🛡️ OPTIMIZER TOWER DEFENSE (Defensa en Cinta)
+// ============================================================================
+const OptimizerDefenseGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const waves = [
+    {
+      id: 'wave-prop',
+      title: 'Oleada 1 en la Cinta: Variables con Constantes Conocidas (a = 5, b = 3)',
+      expectedTurret: 'PROP',
+      explain:
+        'Primero debes activar la Torreta Propagadora (Azul) para sustituir las variables por sus valores constantes conocidos en las expresiones.',
+    },
+    {
+      id: 'wave-fold',
+      title: 'Oleada 2 en la Cinta: Operaciones entre Constantes (3 * 2 y 5 + 6)',
+      expectedTurret: 'FOLD',
+      explain:
+        'Una vez propagadas las constantes, debes disparar la Torreta Plegadora (Constant Folding) para precalcular 3 * 2 = 6 y 5 + 6 = 11.',
+    },
+    {
+      id: 'wave-dce',
+      title: 'Oleada 3 en la Cinta: Asignaciones Muertas que ya no se vuelven a leer',
+      expectedTurret: 'DCE',
+      explain:
+        'Finalmente, la Torreta Destructora DCE (Roja) desintegra el código muerto para que solo las instrucciones vivas lleguen al núcleo de la CPU.',
+    },
+  ];
+
+  const [waveIdx, setWaveIdx] = useState(0);
+  const currentWave = waves[waveIdx];
+
+  const handleFireTurret = (turret: 'PROP' | 'FOLD' | 'DCE', turretName: string) => {
+    if (!currentWave) return;
+    if (turret === currentWave.expectedTurret) {
+      const next = waveIdx + 1;
+      setWaveIdx(next);
+      onStepProgress(next);
+      if (next >= waves.length) {
+        onWin();
+      }
+    } else {
+      onMistake({
+        phaseName: 'Optimización (Optimizer Tower Defense)',
+        stepTitle: currentWave.title,
+        userAnswer: `Activaste ${turretName}`,
+        whatWentWrong: `Activaste la torreta equivocada para la oleada actual en la cinta transportadora. Si destruyes código antes de propagar o intentas plegar variables sin reemplazarlas antes, corrompes la optimización.`,
+        whatShouldBeDone: currentWave.explain,
+      });
+    }
+  };
+
+  if (!currentWave) return null;
+
+  return (
+    <div
+      style={{
+        padding: '16px',
+        borderRadius: 'var(--radius-md)',
+        background: 'rgba(10, 20, 38, 0.92)',
+        border: '1px solid var(--green)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)' }}>
+          🛡️ TOWER DEFENSE DEL OPTIMIZADOR — Oleada {waveIdx + 1} de {waves.length} ({phase.summary})
+        </span>
+      </div>
+
+      {/* Cinta transportadora hacia el núcleo de la CPU */}
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'rgba(6, 11, 23, 0.85)',
+          border: '1px dashed var(--blue-bright)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '10px',
+          fontFamily: 'var(--font-mono)',
         }}
       >
+        <span style={{ color: '#FFFFFF', fontWeight: 700 }}>
+          📦 {currentWave.title}
+        </span>
+        <Chip label="➔ Avanzando hacia 🧠 Núcleo CPU" variant="cyan" />
+      </div>
+
+      {/* Las 3 Torretas Defensivas */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+          gap: '10px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleFireTurret('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes')}
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(37, 99, 235, 0.2)',
+            border: '2px solid var(--blue-bright)',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          🔵 Torreta 1: Rayo Propagador (Sustituir variables por constantes)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleFireTurret('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)')}
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            border: '2px solid var(--green)',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          🟢 Torreta 2: Prensa Folding (Fusionar 3*2=6 y 5+6=11)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleFireTurret('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)')}
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(244, 63, 94, 0.18)',
+            border: '2px solid var(--red)',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          🔴 Torreta 3: Láser DCE (Eliminar asignaciones muertas)
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 6. FASE ENSAMBLADOR: ⚡ REGISTER SWITCHBOARD (Conectar Cables a Registros R0-R7)
+// ============================================================================
+const RegisterSwitchboardGame: React.FC<{
+  phase: PhaseResult;
+  onWin: () => void;
+  onMistake: (f: GameMistakeFeedback) => void;
+  onStepProgress: (idx: number) => void;
+}> = ({ phase, onWin, onMistake, onStepProgress }) => {
+  const instrs: Array<{ pc: number; text: string }> = useMemo(
+    () => phase.output?.instructions || [],
+    [phase]
+  );
+
+  const [pcIdx, setPcIdx] = useState(0);
+  const currentIns = instrs[pcIdx];
+
+  const handlePatchCable = (isCorrect: boolean, chosenLabel: string, wrongReason: string) => {
+    if (!currentIns) return;
+    if (isCorrect) {
+      const next = pcIdx + 1;
+      setPcIdx(next);
+      onStepProgress(next);
+      if (next >= instrs.length) {
+        onWin();
+      }
+    } else {
+      onMistake({
+        phaseName: 'Ensamblador ISA (Register Switchboard)',
+        stepTitle: `Cableado de Placa Base en PC=${currentIns.pc}`,
+        userAnswer: chosenLabel,
+        whatWentWrong: wrongReason,
+        whatShouldBeDone: `En el ciclo PC=${currentIns.pc} debes conectar el bus y accionar la compuerta exacta "${currentIns.text}" dentro del banco R0–R7.`,
+      });
+    }
+  };
+
+  if (!currentIns) return null;
+
+  const isHalt = currentIns.text === 'HALT';
+  const isLoadi = currentIns.text.startsWith('LOADI');
+
+  return (
+    <div
+      style={{
+        padding: '16px',
+        borderRadius: 'var(--radius-md)',
+        background: 'rgba(10, 20, 38, 0.92)',
+        border: '1px solid var(--blue-bright)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)' }}>
+          ⚡ TABLERO DE CABLEADO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc} de {instrs.length - 1}
+        </span>
+      </div>
+
+      {/* Banco visual de los 8 chips de registros R0..R7 */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(8, minmax(52px, 1fr))',
+          gap: '6px',
+          overflowX: 'auto',
+        }}
+      >
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((r) => {
+          const isUsedHere = currentIns.text.includes(`R${r}`);
+          return (
+            <div
+              key={r}
+              style={{
+                padding: '8px 6px',
+                borderRadius: '6px',
+                textAlign: 'center',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                backgroundColor: isUsedHere ? 'rgba(16, 185, 129, 0.25)' : 'rgba(15, 23, 42, 0.7)',
+                border: isUsedHere ? '2px solid var(--green)' : '1px solid var(--line)',
+                color: isUsedHere ? '#FFFFFF' : 'var(--muted)',
+              }}
+            >
+              🔌 R{r}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Compuertas de cableado */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+          gap: '10px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handlePatchCable(true, currentIns.text, '')}
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            border: '2px solid var(--green)',
+            color: '#FFFFFF',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          ⚡ Enrutar Cable ISA: {currentIns.text}
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            handlePatchCable(
+              false,
+              isHalt
+                ? 'Seguir sin emitir HALT (Desbordar contador PC)'
+                : isLoadi
+                ? 'Cablear LOAD desde celda RAM [0] en vez de constante inmediata LOADI'
+                : 'Cablear hacia registro inexistente R9',
+              isHalt
+                ? 'Olvidaste cerrar el flujo de control con la compuerta HALT (0xFF); la CPU seguiría leyendo memoria vacía.'
+                : isLoadi
+                ? 'Conectaste el cable al bus de memoria RAM (LOAD) en lugar del generador de constantes inmediatas (LOADI).'
+                : 'Intentaste conectar un cable al registro R9, pero el procesador solo posee 8 registros físicos (R0 a R7).'
+            )
+          }
+          style={{
+            padding: '12px 14px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            border: '1px solid var(--line-strong)',
+            color: 'var(--text)',
+            fontFamily: 'var(--font-mono)',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          ⚡ Cortocircuito:{' '}
+          {isHalt
+            ? 'Omitir HALT final'
+            : isLoadi
+            ? 'Cablear LOAD R0, [0] (Bus RAM)'
+            : 'Cablear a Registro R9 (Fuera de rango)'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// CONTENEDOR PRINCIPAL DE LOS 6 MINI-JUEGOS ARCADE (Fases 1 a 6)
+// ============================================================================
+export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
+  phase,
+  onCompletePhase,
+  onSyncStepIndex,
+}) => {
+  const [phaseCompleted, setPhaseCompleted] = useState(false);
+  const [mistakesCount, setMistakesCount] = useState(0);
+  const [stepsDone, setStepsDone] = useState(0);
+  const [feedbackModal, setFeedbackModal] = useState<GameMistakeFeedback | null>(null);
+
+  useEffect(() => {
+    setPhaseCompleted(false);
+    setMistakesCount(0);
+    setStepsDone(0);
+    setFeedbackModal(null);
+  }, [phase.id]);
+
+  // La fase 7 (binary) NO lleva mini-juego por instrucción directa del usuario
+  if (phase.id === 'binary') {
+    return null;
+  }
+
+  const handleMistake = (fb: GameMistakeFeedback) => {
+    setMistakesCount((m) => m + 1);
+    setFeedbackModal(fb);
+  };
+
+  const handleStepProgress = (idx: number) => {
+    setStepsDone(idx);
+    if (onSyncStepIndex && phase.steps.length > 0) {
+      onSyncStepIndex(Math.min(phase.steps.length - 1, idx));
+    }
+  };
+
+  return (
+    <div
+      role="region"
+      aria-label={`Mini-juego arcade de ${phase.name}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+        padding: '18px',
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(37, 99, 235, 0.12))',
+        border: '1px solid rgba(16, 185, 129, 0.4)',
+        borderRadius: 'var(--radius-lg)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <Chip label="🎮 MODO HÉROE: TÚ ERES EL COMPILADOR" variant="green" />
+          <Chip label="🕹️ MODO ARCADE HERO" variant="green" />
           <strong style={{ color: 'var(--text-pure)', fontSize: '1rem' }}>
-            Misión: {phase.name}
+            {phase.name}
           </strong>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <span
             style={{
               fontSize: '0.8rem',
@@ -595,7 +1344,7 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
               borderRadius: '999px',
             }}
           >
-            Progreso: {Math.min(currentIdx, challenges.length)} / {challenges.length}
+            Progreso: {stepsDone}
           </span>
           <span
             style={{
@@ -607,163 +1356,97 @@ export const PhaseMiniGame: React.FC<PhaseMiniGameProps> = ({
               borderRadius: '999px',
             }}
           >
-            Errores cometidos: {mistakesCount}
+            Fallos: {mistakesCount}
           </span>
         </div>
       </div>
 
-      {/* Registro visual de lo que el usuario ya construyó en esta fase */}
-      {completedBadges.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            padding: '10px 12px',
-            backgroundColor: 'rgba(10, 20, 38, 0.6)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--line)',
-            alignItems: 'center',
-          }}
-        >
-          <span style={{ fontSize: '0.75rem', color: 'var(--green)', fontWeight: 700 }}>
-            ✓ Procesado por ti:
-          </span>
-          {completedBadges.map((b, i) => (
-            <span
-              key={i}
-              style={{
-                fontSize: '0.78rem',
-                fontFamily: 'var(--font-mono)',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(16, 185, 129, 0.18)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-              }}
-            >
-              {b}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Reto activo o Pantalla de Fase Superada */}
-      {!isCompleted && currentChallenge ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-            padding: '16px',
-            backgroundColor: 'rgba(10, 20, 38, 0.78)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--line-strong)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--blue-bright)', textTransform: 'uppercase' }}>
-              Paso {currentIdx + 1} de {challenges.length} — {currentChallenge.stepTitle}
-            </span>
-          </div>
-
-          {currentChallenge.contextCode && (
-            <div
-              style={{
-                padding: '10px 14px',
-                backgroundColor: 'var(--bg-deep)',
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-sm)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.9rem',
-                color: 'var(--green)',
-              }}
-            >
-              {currentChallenge.contextCode}
-            </div>
+      {!phaseCompleted ? (
+        <>
+          {phase.id === 'lexical' && (
+            <SpaceLexerGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
           )}
-
-          <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-pure)', margin: 0 }}>
-            {currentChallenge.prompt}
-          </p>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
-              gap: '10px',
-            }}
-          >
-            {currentChallenge.options.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => handleSelectOption(opt)}
-                style={{
-                  textAlign: 'left',
-                  padding: '12px 16px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'rgba(19, 36, 66, 0.85)',
-                  border: '1px solid var(--line-strong)',
-                  color: 'var(--text-pure)',
-                  fontFamily: 'var(--font-ui)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  minHeight: '48px',
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
+          {phase.id === 'syntactic' && (
+            <AstConstellationGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
+          )}
+          {phase.id === 'semantic' && (
+            <SymbolMazeGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
+          )}
+          {phase.id === 'ir' && (
+            <PostOrderSniperGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
+          )}
+          {phase.id === 'optimization' && (
+            <OptimizerDefenseGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
+          )}
+          {phase.id === 'assembly' && (
+            <RegisterSwitchboardGame
+              phase={phase}
+              onWin={() => setPhaseCompleted(true)}
+              onMistake={handleMistake}
+              onStepProgress={handleStepProgress}
+            />
+          )}
+        </>
       ) : (
         <div
           style={{
-            padding: '20px',
-            backgroundColor: 'rgba(16, 185, 129, 0.14)',
+            padding: '18px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
             border: '1px solid var(--green)',
             borderRadius: 'var(--radius-md)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: '14px',
+            gap: '12px',
           }}
         >
           <div>
             <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              🏆 ¡Fase {phase.name} Completada por el Héroe!
+              🏆 ¡Misión Arcade de {phase.name} Superada!
             </h4>
             <p style={{ fontSize: '0.88rem', color: 'var(--text)', margin: '4px 0 0 0' }}>
-              Ejecutaste todos los procesos de esta fase ({challenges.length} pasos completados, {mistakesCount} errores).
+              Completaste todos los procesos internos del compilador en esta fase ({mistakesCount} fallos).
             </p>
           </div>
-
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setCurrentIdx(0);
-                setCompletedBadges([]);
-                setMistakesCount(0);
-              }}
-            >
-              Repetir Mini-Juego
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Button variant="secondary" size="sm" onClick={() => setPhaseCompleted(false)}>
+              Jugar de nuevo
             </Button>
             {onCompletePhase && (
               <Button variant="primary" size="sm" onClick={onCompletePhase}>
-                Siguiente Fase del Compilador →
+                Avanzar a la Siguiente Fase →
               </Button>
             )}
           </div>
         </div>
       )}
 
-      {/* Ventana Modal cuando el usuario comete un error */}
       <ErrorFeedbackModal
         feedback={feedbackModal}
         onClose={() => setFeedbackModal(null)}

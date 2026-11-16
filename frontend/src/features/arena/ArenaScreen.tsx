@@ -8,6 +8,7 @@ import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
 import { Panel } from '../../ui/Panel';
 import { PhaseMiniGame } from '../game/PhaseMiniGame';
+import { VirtualDesktop } from '../result/VirtualDesktop';
 import { ExplainPanel } from './ExplainPanel';
 import { PhasePlayer } from './PhasePlayer';
 import { PhaseStepper } from './PhaseStepper';
@@ -57,7 +58,7 @@ export const ArenaScreen: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, maxWidth: '100%' }}>
-      {/* Encabezado con navegación y selector de Modo Héroe */}
+      {/* Encabezado con navegación y selector de Modo Arcade Hero */}
       <header
         style={{
           display: 'flex',
@@ -79,18 +80,22 @@ export const ArenaScreen: React.FC = () => {
             {es.app.nav.arena}
           </h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-            Representa cada proceso del compilador en el Mini-Juego Héroe o inspecciona la animación 1 a 1.
+            {activePhase === 'binary'
+              ? 'Fase 7: Inspecciona el binario de 8 bytes y ejecuta programa.exe en el Escritorio Virtual.'
+              : 'Juega los Mini-Juegos Arcade de cada fase (Navecitas, Conectar Nodos, Laberinto, Sniper, Tower Defense y Registros).'}
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <Button
-            variant={heroGameActive ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setHeroGameActive((v) => !v)}
-          >
-            {heroGameActive ? '🎮 Mini-Juego Activo' : '🎮 Activar Mini-Juego'}
-          </Button>
+          {activePhase !== 'binary' && (
+            <Button
+              variant={heroGameActive ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setHeroGameActive((v) => !v)}
+            >
+              {heroGameActive ? '🕹️ Arcade Hero Activo' : '🕹️ Activar Arcade Hero'}
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={() => navigate('/')}>
             ← Volver al Editor
           </Button>
@@ -111,13 +116,21 @@ export const ArenaScreen: React.FC = () => {
         onSelectPhase={(phase) => setActivePhase(phase)}
       />
 
-      {/* Mini-Juego Interactivo de la Fase Actual (Hero-Compiler) */}
-      {heroGameActive && currentPhaseData && currentPhaseData.status === 'ok' && (
-        <PhaseMiniGame
-          phase={currentPhaseData}
-          onCompletePhase={handleAdvanceNextPhase}
-          onSyncStepIndex={(idx) => setStepIndex(idx)}
-        />
+      {/* Mini-Juegos Arcade en las fases 1 a 6 (la fase 7 'binary' NO tiene mini-juego) */}
+      {heroGameActive &&
+        activePhase !== 'binary' &&
+        currentPhaseData &&
+        currentPhaseData.status === 'ok' && (
+          <PhaseMiniGame
+            phase={currentPhaseData}
+            onCompletePhase={handleAdvanceNextPhase}
+            onSyncStepIndex={(idx) => setStepIndex(idx)}
+          />
+        )}
+
+      {/* En la Fase 7 (binary): Mostrar directamente el Escritorio Virtual con el binario y el ejecutable */}
+      {activePhase === 'binary' && trace.ok && (
+        <VirtualDesktop trace={trace} defaultConsoleOpen={false} />
       )}
 
       {/* Reproductor interactivo 1 a 1 de la fase actual */}

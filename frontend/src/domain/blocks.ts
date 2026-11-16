@@ -15,8 +15,8 @@ export type Stmt =
 
 export type Program = Stmt[];
 
-export const MAX_FRAGMENTS = 12;
-export const MAX_LINES = 8;
+export const MAX_FRAGMENTS = 36;
+export const MAX_LINES = 20;
 
 // Constructores de expresiones
 export const num = (value: number): Expr => ({ kind: 'num', value });

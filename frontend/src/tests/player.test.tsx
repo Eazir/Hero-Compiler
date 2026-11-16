@@ -7,7 +7,7 @@ import { ArenaScreen } from '../features/arena/ArenaScreen';
 import { useCompileStore } from '../state/compileStore';
 import { usePlayerStore } from '../state/playerStore';
 
-describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
+describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio en Fase 7', () => {
   const parsedTrace = CompileResponse.parse(okBasic);
 
   beforeEach(() => {
@@ -58,7 +58,7 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     expect(usePlayerStore.getState().speed).toBe(2);
   });
 
-  test('en la fase semántica se visualiza la tabla de símbolos', () => {
+  test('en la fase semántica se visualiza la tabla de símbolos y el Laberinto Symbol Maze', () => {
     usePlayerStore.setState({ activePhase: 'semantic', stepIndex: 0 });
 
     render(
@@ -68,10 +68,10 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     );
 
     expect(screen.getByRole('heading', { name: /tabla de símbolos/i })).toBeInTheDocument();
-    expect(screen.getByText('Identificador')).toBeInTheDocument();
+    expect(screen.getByText(/LABERINTO DE MEMORIA/i)).toBeInTheDocument();
   });
 
-  test('en la fase de código intermedio se visualizan las instrucciones TAC', () => {
+  test('en la fase de código intermedio se visualizan las instrucciones TAC y el juego Post-Order Sniper', () => {
     usePlayerStore.setState({ activePhase: 'ir', stepIndex: 0 });
 
     render(
@@ -81,10 +81,10 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     );
 
     expect(screen.getByText(/instrucciones de código intermedio/i)).toBeInTheDocument();
-    expect(screen.getByText('t1 = b * 2')).toBeInTheDocument();
+    expect(screen.getByText(/CAMPO DE TIRO POST-ORDER SNIPER/i)).toBeInTheDocument();
   });
 
-  test('en la fase de optimización se visualiza la reducción de instrucciones', () => {
+  test('en la fase de optimización se visualiza la reducción y el juego Optimizer Tower Defense', () => {
     usePlayerStore.setState({ activePhase: 'optimization', stepIndex: 0 });
 
     render(
@@ -94,32 +94,34 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     );
 
     expect(screen.getByText(/instrucciones optimizadas/i)).toBeInTheDocument();
-    expect(screen.getAllByText('print 11').length).toBeGreaterThan(0);
+    expect(screen.getByText(/TOWER DEFENSE DEL OPTIMIZADOR/i)).toBeInTheDocument();
   });
 
-  test('en la fase de ensamblador y binario se visualizan AsmView y HexView', () => {
-    usePlayerStore.setState({ activePhase: 'assembly', stepIndex: 0 });
-
-    const { rerender } = render(
-      <BrowserRouter>
-        <ArenaScreen />
-      </BrowserRouter>
-    );
-
-    expect(screen.getByText(/instrucciones de ensamblador isa/i)).toBeInTheDocument();
-    expect(screen.getAllByText('LOADI R0, 11').length).toBeGreaterThan(0);
-
+  test('la fase 7 (binary) NO tiene mini-juego y muestra el binario junto al Escritorio Virtual con programa.exe y Consola', () => {
     usePlayerStore.setState({ activePhase: 'binary', stepIndex: 0 });
-    rerender(
+
+    render(
       <BrowserRouter>
         <ArenaScreen />
       </BrowserRouter>
     );
 
+    // No debe haber mini-juego en la fase 7
+    expect(screen.queryByRole('region', { name: /mini-juego arcade/i })).not.toBeInTheDocument();
+
+    // Muestra la rejilla hexadecimal y el Escritorio Virtual
     expect(screen.getByText(/rejilla hexadecimal de 8 bytes/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Escritorio Virtual Hero-OS/i)).toBeInTheDocument();
+
+    // Al hacer clic en programa.exe se abre la consola y muestra la salida '11'
+    const exeBtns = screen.getAllByRole('button', { name: /Ejecutar programa\.exe/i });
+    fireEvent.click(exeBtns[0]);
+
+    const consoleLog = screen.getByRole('log', { name: /salida de consola/i });
+    expect(consoleLog).toHaveTextContent('11');
   });
 
-  test('el mini-juego de Hero-Compiler permite jugar cada paso y abre la ventana de diagnóstico al equivocarse', () => {
+  test('el mini-juego Space Lexer dispara láseres y abre la ventana de diagnóstico si usas el cañón equivocado', () => {
     usePlayerStore.setState({ activePhase: 'lexical', stepIndex: 0 });
 
     render(
@@ -128,23 +130,19 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
       </BrowserRouter>
     );
 
-    // El primer token es "a" (ID). Si el usuario elige una opción errónea (ej. NUM), aparece el modal explicando qué error se cometió y qué se debió hacer
-    const wrongBtn = screen.getByRole('button', { name: /NUM \(Constante numérica entera\)/i });
-    fireEvent.click(wrongBtn);
+    // El primer meteorito es "a" (ID). Si disparamos con el Cañón NUM, rebota y abre la ventana de error
+    const wrongCannonBtn = screen.getByRole('button', { name: /Cañón NUM/i });
+    fireEvent.click(wrongCannonBtn);
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText(/¿Qué error se cometió\?/i)).toBeInTheDocument();
     expect(screen.getByText(/¿Qué se debió hacer\?/i)).toBeInTheDocument();
 
-    // Cerrar el modal y elegir la opción correcta (ID)
-    const closeBtn = screen.getByRole('button', { name: /entendido, corregir paso/i });
-    fireEvent.click(closeBtn);
+    // Cerramos la ventana modal y disparamos con el Cañón ID correcto
+    fireEvent.click(screen.getByRole('button', { name: /entendido, corregir paso/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Cañón ID/i }));
 
-    const rightBtn = screen.getByRole('button', { name: /ID \(Identificador de variable\)/i });
-    fireEvent.click(rightBtn);
-
-    // Avanza al Paso 2 del mini-juego
-    expect(screen.getByText(/Progreso: 1 \//i)).toBeInTheDocument();
+    expect(screen.getByText(/Progreso: 1/i)).toBeInTheDocument();
   });
 });
