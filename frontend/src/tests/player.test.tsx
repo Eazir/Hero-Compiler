@@ -145,4 +145,58 @@ describe('FE-3 y FE-8: Reproductor, Mini-Juegos Arcade (Fases 1-6) y Escritorio 
 
     expect(screen.getByText(/Progreso: 1/i)).toBeInTheDocument();
   });
+
+  test('Space Lexer responde a controles de teclado (Flechas, Tab, Espacio) y los botones no tienen descripción de ayuda', () => {
+    usePlayerStore.setState({ activePhase: 'lexical', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    // 1. Verificamos que los botones de cañones solo muestran el nombre y no la descripción
+    const cannonIdButtons = screen.getAllByRole('button', { name: /Cañón ID/i });
+    const cannonIdBtn = cannonIdButtons[cannonIdButtons.length - 1];
+    expect(cannonIdBtn).toBeInTheDocument();
+    expect(cannonIdBtn).not.toHaveTextContent('Variables como a, b, c');
+
+    const cannonNumBtn = screen.getByRole('button', { name: /Cañón NUM/i });
+    expect(cannonNumBtn).not.toHaveTextContent('Números enteros');
+
+    // 2. Control con teclado: Mover con ArrowRight y disparar con Espacio
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    // Al estar en el carril 2 (donde no está el token 'a' que cae en carril 1), disparar con Espacio dispara al vacío
+    fireEvent.keyDown(window, { key: ' ' });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Disparo en Carril Vacío/i)).toBeInTheDocument();
+
+    // Cerramos el modal
+    fireEvent.click(screen.getByRole('button', { name: /entendido, corregir paso/i }));
+
+    // 3. Regresar con ArrowLeft al carril 1 y cambiar de cañón con Tab
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    fireEvent.keyDown(window, { key: 'Tab' }); // cambia a NUM
+    // Dispara al meteorito 'a' (ID) con cañón NUM -> error de clasificación
+    fireEvent.keyDown(window, { key: ' ' });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/El rayo láser rebotó en el escudo magnético/i)).toBeInTheDocument();
+  });
+
+  test('Symbol Maze responde a las flechas del teclado para mover el dron y recoger llaves', () => {
+    usePlayerStore.setState({ activePhase: 'semantic', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    // El dron empieza en (0, 0). Mover a la derecha con ArrowRight lo lleva a (0, 1) donde está la llave Declarar 'a'
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+
+    expect(screen.getByText(/Llaves en Tabla: \[a\]/i)).toBeInTheDocument();
+  });
 });

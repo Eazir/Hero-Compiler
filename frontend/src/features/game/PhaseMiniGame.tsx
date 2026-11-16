@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PhaseResult } from '../../api/schema';
 import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
@@ -10,8 +10,23 @@ interface PhaseMiniGameProps {
   onSyncStepIndex?: (stepIdx: number) => void;
 }
 
+const kbdStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '2px 7px',
+  backgroundColor: 'rgba(15, 23, 42, 0.95)',
+  border: '1px solid var(--blue-bright)',
+  borderRadius: '4px',
+  color: '#FFFFFF',
+  fontFamily: 'var(--font-mono)',
+  fontWeight: 700,
+  fontSize: '0.72rem',
+  boxShadow: '0 2px 0 rgba(0, 0, 0, 0.5)',
+};
+
 // ============================================================================
-// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas y Disparos en Carriles)
+// 1. FASE LÉXICA: 🚀 SPACE LEXER (Juego de Navecitas Arcade y Disparos en Carriles)
 // ============================================================================
 type LaserCannonType = 'ID' | 'NUM' | 'OP' | 'RES';
 
@@ -26,31 +41,31 @@ interface CannonDef {
 const CANNONS: CannonDef[] = [
   {
     id: 'ID',
-    name: '⚡ Cañón ID (Identificador de variable)',
-    shortName: 'CAÑÓN ID',
+    name: 'CAÑÓN ID',
+    shortName: 'ID',
     color: '#38BDF8',
-    desc: 'Variables como a, b, c, x',
+    desc: 'Identificador de variable (como a, b, c, x)',
   },
   {
     id: 'NUM',
-    name: '🟣 Cañón NUM (Constante numérica entera)',
-    shortName: 'CAÑÓN NUM',
+    name: 'CAÑÓN NUM',
+    shortName: 'NUM',
     color: '#818CF8',
-    desc: 'Números enteros como 5, 3, 2',
+    desc: 'Constante numérica entera (como 5, 3, 2)',
   },
   {
     id: 'OP',
-    name: '🟠 Cañón OPERADOR (=, +, -, *, paréntesis)',
-    shortName: 'CAÑÓN OP',
+    name: 'CAÑÓN OP',
+    shortName: 'OP',
     color: '#F59E0B',
-    desc: 'Símbolos =, +, -, *, (, )',
+    desc: 'Operador aritmético o símbolo (=, +, -, *, paréntesis)',
   },
   {
     id: 'RES',
-    name: '🟢 Cañón RESERVADO (print / salto de línea)',
-    shortName: 'CAÑÓN RES',
+    name: 'CAÑÓN RES',
+    shortName: 'RES',
     color: '#10B981',
-    desc: 'Palabra reservada print y fin de línea',
+    desc: 'Palabra reservada del lenguaje (print, salto de línea)',
   },
 ];
 
@@ -75,38 +90,55 @@ const SpaceLexerGame: React.FC<{
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedCannon, setSelectedCannon] = useState<LaserCannonType>('ID');
   const [shipLane, setShipLane] = useState(0);
+  const [meteorY, setMeteorY] = useState(12); // porcentaje de caída (12% a 70%)
   const [laserShotAnim, setLaserShotAnim] = useState<number | null>(null);
+  const [hitExplosion, setHitExplosion] = useState<number | null>(null);
   const [destroyedTokens, setDestroyedTokens] = useState<string[]>([]);
 
   const activeToken = tokens[currentIdx];
   const targetLane = (currentIdx * 3) % 4;
 
+  // Caída animada del token meteorito hacia la línea de defensa
   useEffect(() => {
-    setShipLane(targetLane);
-  }, [targetLane]);
+    setMeteorY(12);
+    const interval = setInterval(() => {
+      setMeteorY((y) => {
+        if (y >= 70) return 70;
+        return y + 1.6;
+      });
+    }, 140);
+    return () => clearInterval(interval);
+  }, [currentIdx]);
 
   const handleFireAtMeteor = (cannonToUse: LaserCannonType, laneToShoot: number) => {
     if (!activeToken) return;
-    setShipLane(laneToShoot);
 
     const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n' : activeToken.lexeme;
 
+    // Disparo en carril vacío
     if (laneToShoot !== targetLane) {
+      setLaserShotAnim(laneToShoot);
+      setTimeout(() => setLaserShotAnim(null), 250);
       onMistake({
         phaseName: 'Análisis Léxico (Space Lexer)',
         stepTitle: `Disparo en Carril Vacío #${laneToShoot + 1}`,
-        userAnswer: `Disparaste en el Carril ${laneToShoot + 1} donde no está el meteorito activo`,
-        whatWentWrong: `Tu nave disparó al espacio vacío en el carril ${laneToShoot + 1}, mientras el meteorito "${lexDisplay}" desciende por el carril ${targetLane + 1}.`,
-        whatShouldBeDone: `Mueve tu nave al carril ${targetLane + 1} (con ◀ / ▶ o haciendo clic sobre el meteorito) y dispara con el cañón del tipo de token correspondiente.`,
+        userAnswer: `Disparaste en el Carril ${laneToShoot + 1} donde no hay ningún meteorito activo`,
+        whatWentWrong: `Tu nave disparó al vacío en el carril ${laneToShoot + 1}, mientras el meteorito "${lexDisplay}" desciende por el carril ${targetLane + 1}.`,
+        whatShouldBeDone: `Usa las flechas ◀ / ▶ o A / D del teclado para mover la nave al carril ${targetLane + 1}, cambia el cañón con TAB y dispara con ESPACIO.`,
       });
       return;
     }
 
     const expectedCannon = mapTokenToCannon(activeToken.type);
 
+    // Disparo en el carril correcto con el cañón correcto
     if (cannonToUse === expectedCannon) {
-      setLaserShotAnim(targetLane);
-      setTimeout(() => setLaserShotAnim(null), 220);
+      setLaserShotAnim(laneToShoot);
+      setHitExplosion(targetLane);
+      setTimeout(() => {
+        setLaserShotAnim(null);
+        setHitExplosion(null);
+      }, 260);
 
       const nextList = [...destroyedTokens, `${lexDisplay}→${activeToken.type}`];
       setDestroyedTokens(nextList);
@@ -117,47 +149,165 @@ const SpaceLexerGame: React.FC<{
         onWin();
       }
     } else {
+      // Disparo en el carril correcto con el cañón incorrecto
+      setLaserShotAnim(laneToShoot);
+      setTimeout(() => setLaserShotAnim(null), 250);
       const chosenDef = CANNONS.find((c) => c.id === cannonToUse)!;
       const rightDef = CANNONS.find((c) => c.id === expectedCannon)!;
       onMistake({
         phaseName: 'Análisis Léxico (Space Lexer)',
         stepTitle: `Meteorito #${currentIdx + 1}: "${lexDisplay}" (Línea ${activeToken.line}, Col ${activeToken.col})`,
-        userAnswer: `Disparaste con ${chosenDef.name}`,
-        whatWentWrong: `El rayo rebotó en el escudo magnético del meteorito "${lexDisplay}" porque no pertenece a la categoría ${chosenDef.id} (${chosenDef.desc}).`,
-        whatShouldBeDone: `Para clasificar y desintegrar el lexema "${lexDisplay}" (token ${activeToken.type}), equipa tu nave con ${rightDef.name} y dispara.`,
+        userAnswer: `Disparaste con el ${chosenDef.name}`,
+        whatWentWrong: `El rayo láser rebotó en el escudo magnético del meteorito "${lexDisplay}". El lexema no pertenece a la categoría ${chosenDef.id} (${chosenDef.desc}).`,
+        whatShouldBeDone: `Para clasificar el lexema "${lexDisplay}" (token ${activeToken.type}), equipa tu nave con el ${rightDef.name} pulsando TAB o las teclas 1-4 y dispara con ESPACIO.`,
       });
     }
   };
+
+  // Referencias para evitar cierres obsoletos en los atajos de teclado
+  const latestRef = useRef({
+    shipLane,
+    selectedCannon,
+    handleFireAtMeteor,
+  });
+  useEffect(() => {
+    latestRef.current = {
+      shipLane,
+      selectedCannon,
+      handleFireAtMeteor,
+    };
+  });
+
+  // Escuchador global de teclado: Flechas, Espacio, Tab y Teclas numéricas 1-4
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setShipLane((l) => Math.max(0, l - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        setShipLane((l) => Math.min(3, l + 1));
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        const { selectedCannon: sc, shipLane: sl, handleFireAtMeteor: hf } = latestRef.current;
+        hf(sc, sl);
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const list: LaserCannonType[] = ['ID', 'NUM', 'OP', 'RES'];
+        setSelectedCannon((curr) => {
+          const nextIdx = (list.indexOf(curr) + 1) % list.length;
+          return list[nextIdx];
+        });
+      } else if (['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const map: Record<string, LaserCannonType> = {
+          '1': 'ID',
+          '2': 'NUM',
+          '3': 'OP',
+          '4': 'RES',
+        };
+        setSelectedCannon(map[e.key]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (!activeToken) return null;
 
   const lexDisplay = activeToken.type === 'NEWLINE' ? '\\n (Salto)' : `"${activeToken.lexeme}"`;
   const nextMeteor1 = tokens[currentIdx + 1];
   const nextMeteor2 = tokens[currentIdx + 2];
+  const activeCannonColor = CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 14px',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
+          fontSize: '0.78rem',
+        }}
+      >
+        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES ARCADE:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Mover Nave
+          </span>
+          <span>
+            <kbd style={kbdStyle}>ESPACIO</kbd> Disparar Láser
+          </span>
+          <span>
+            <kbd style={kbdStyle}>TAB</kbd> Cambiar Cañón (o <kbd style={kbdStyle}>1-4</kbd>)
+          </span>
+        </div>
+      </div>
+
+      {/* Arena de Combate Espacial Arcade de Pantalla Larga */}
       <div
         style={{
           position: 'relative',
-          minHeight: '300px',
+          minHeight: '460px',
+          height: '460px',
           borderRadius: 'var(--radius-md)',
           background:
-            'radial-gradient(circle at 50% 15%, rgba(37, 99, 235, 0.32), rgba(5, 9, 20, 0.98) 78%)',
+            'radial-gradient(circle at 50% 12%, rgba(37, 99, 235, 0.35), rgba(4, 8, 19, 0.98) 75%)',
           border: '1px solid var(--blue-bright)',
           padding: '16px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
           overflow: 'hidden',
+          boxShadow: '0 0 30px rgba(15, 23, 42, 0.8)',
         }}
       >
         {/* Cabecera del radar espacial */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-            🚀 SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length} | Carril Objetivo: #{targetLane + 1}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            zIndex: 4,
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.84rem',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--blue-bright)',
+              fontWeight: 800,
+              textShadow: '0 0 10px rgba(56, 189, 248, 0.5)',
+            }}
+          >
+            🚀 SPACE LEXER — Meteorito {currentIdx + 1} de {tokens.length} | Carril Activo: #{targetLane + 1}
           </span>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              alignItems: 'center',
+              fontSize: '0.75rem',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--muted)',
+            }}
+          >
             <span>Próximos en radar:</span>
             {nextMeteor1 && (
               <Chip label={nextMeteor1.type === 'NEWLINE' ? '\\n' : nextMeteor1.lexeme} variant="default" />
@@ -168,118 +318,212 @@ const SpaceLexerGame: React.FC<{
           </div>
         </div>
 
-        {/* 4 Carriles de Combate Espacial */}
+        {/* 4 Pistas Verticales de Caída y Combate */}
         <div
           style={{
+            flex: 1,
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             gap: '12px',
-            margin: '14px 0',
+            margin: '12px 0',
+            position: 'relative',
           }}
         >
           {[0, 1, 2, 3].map((lane) => {
             const hasMeteor = lane === targetLane;
             const isShipHere = lane === shipLane;
-            const activeCannonColor =
-              CANNONS.find((c) => c.id === selectedCannon)?.color || '#38BDF8';
 
             return (
               <div
                 key={lane}
-                onClick={() => {
-                  setShipLane(lane);
-                  if (hasMeteor) handleFireAtMeteor(selectedCannon, lane);
-                }}
+                onClick={() => setShipLane(lane)}
                 style={{
-                  minHeight: '165px',
+                  height: '100%',
                   borderRadius: 'var(--radius-sm)',
                   border: hasMeteor
-                    ? '2px dashed rgba(56, 189, 248, 0.7)'
-                    : '1px dashed rgba(255, 255, 255, 0.1)',
+                    ? '2px dashed rgba(56, 189, 248, 0.65)'
+                    : '1px dashed rgba(255, 255, 255, 0.08)',
                   backgroundColor: hasMeteor
-                    ? 'rgba(37, 99, 235, 0.14)'
-                    : 'rgba(15, 23, 42, 0.4)',
+                    ? 'rgba(37, 99, 235, 0.12)'
+                    : 'rgba(15, 23, 42, 0.45)',
+                  position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 8px',
-                  cursor: hasMeteor ? 'crosshair' : 'pointer',
-                  position: 'relative',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  transition: 'background-color 0.2s ease',
                 }}
               >
-                <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                {/* Indicador superior del carril */}
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    color: hasMeteor ? 'var(--blue-bright)' : 'var(--muted)',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    marginTop: '8px',
+                    zIndex: 2,
+                  }}
+                >
                   CARRIL {lane + 1}
                 </span>
 
-                {hasMeteor ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleFireAtMeteor(selectedCannon, lane);
-                    }}
-                    aria-label={`Disparar al meteorito ${lexDisplay}`}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '999px',
-                      background: 'linear-gradient(135deg, #1E293B, #0F172A)',
-                      border: '2px solid var(--blue-bright)',
-                      boxShadow: '0 0 20px rgba(56, 189, 248, 0.5)',
-                      color: '#FFFFFF',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 800,
-                      fontSize: '1rem',
-                      cursor: 'crosshair',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <span>☄️</span>
-                    <span>{lexDisplay}</span>
-                  </button>
-                ) : (
-                  <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.15)' }}>✦</span>
-                )}
+                {/* Línea central de radar de la pista */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '30px',
+                    bottom: '70px',
+                    width: '1px',
+                    borderLeft: '1px dashed rgba(255, 255, 255, 0.12)',
+                  }}
+                />
 
-                {/* Rayo láser de la nave */}
-                {isShipHere && (
+                {/* Meteorito cayendo hacia la nave */}
+                {hasMeteor && (
                   <div
                     style={{
-                      width: '5px',
-                      height: '42px',
+                      position: 'absolute',
+                      top: `${meteorY}%`,
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      transition: 'top 0.14s linear',
+                      zIndex: 8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFireAtMeteor(selectedCannon, lane);
+                      }}
+                      aria-label={`Disparar al meteorito ${lexDisplay}`}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '999px',
+                        background:
+                          meteorY > 58
+                            ? 'linear-gradient(135deg, #7F1D1D, #991B1B)'
+                            : 'linear-gradient(135deg, #1E293B, #0F172A)',
+                        border: `2px solid ${meteorY > 58 ? '#EF4444' : 'var(--blue-bright)'}`,
+                        boxShadow:
+                          meteorY > 58
+                            ? '0 0 25px rgba(239, 68, 68, 0.85)'
+                            : '0 0 20px rgba(56, 189, 248, 0.55)',
+                        color: '#FFFFFF',
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 800,
+                        fontSize: '1rem',
+                        cursor: 'crosshair',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span>☄️</span>
+                      <span>{lexDisplay}</span>
+                    </button>
+                    {meteorY > 55 && (
+                      <span
+                        style={{
+                          fontSize: '0.62rem',
+                          fontFamily: 'var(--font-mono)',
+                          color: '#EF4444',
+                          fontWeight: 800,
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                        }}
+                      >
+                        ⚠️ ZONA DE IMPACTO
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Efecto de Explosión al derribar el meteorito */}
+                {hitExplosion === lane && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: `${meteorY}%`,
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      fontSize: '3rem',
+                      zIndex: 15,
+                      filter: 'drop-shadow(0 0 20px #F59E0B)',
+                    }}
+                  >
+                    💥
+                  </div>
+                )}
+
+                {/* Rayo láser disparado por la nave */}
+                {laserShotAnim === lane && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: '50px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '6px',
+                      height: '320px',
+                      background: `linear-gradient(to top, ${activeCannonColor}, #FFFFFF)`,
+                      boxShadow: `0 0 20px ${activeCannonColor}, 0 0 35px ${activeCannonColor}`,
                       borderRadius: '999px',
-                      backgroundColor: activeCannonColor,
-                      boxShadow: `0 0 14px ${activeCannonColor}`,
-                      opacity: laserShotAnim === lane ? 1 : 0.55,
+                      zIndex: 7,
                     }}
                   />
                 )}
 
-                {/* Nave espacial */}
+                {/* Posición de la Nave espacial en la línea defensiva inferior */}
                 <div
                   style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '2px',
+                    zIndex: 9,
                   }}
                 >
-                  <span style={{ fontSize: isShipHere ? '1.75rem' : '1.1rem', opacity: isShipHere ? 1 : 0.25 }}>
-                    {isShipHere ? '🛸' : '▲'}
-                  </span>
-                  {isShipHere && (
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontFamily: 'var(--font-mono)',
-                        color: activeCannonColor,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {selectedCannon}
-                    </span>
+                  {isShipHere ? (
+                    <>
+                      <span
+                        style={{
+                          fontSize: '2.2rem',
+                          filter: `drop-shadow(0 0 14px ${activeCannonColor})`,
+                          userSelect: 'none',
+                        }}
+                      >
+                        🛸
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontFamily: 'var(--font-mono)',
+                          color: activeCannonColor,
+                          fontWeight: 800,
+                          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                          padding: '1px 8px',
+                          borderRadius: '4px',
+                          border: `1px solid ${activeCannonColor}`,
+                        }}
+                      >
+                        {selectedCannon}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.2)' }}>▲</span>
                   )}
                 </div>
               </div>
@@ -287,41 +531,49 @@ const SpaceLexerGame: React.FC<{
           })}
         </div>
 
-        {/* Controles de cabina de la nave: Mover Izquierda / Disparar / Mover Derecha */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {/* Controles de cabina en pantalla: Mover / Disparar / Mover */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+            zIndex: 4,
+          }}
+        >
           <Button
             variant="secondary"
             size="sm"
             onClick={() => setShipLane((l) => Math.max(0, l - 1))}
           >
-            ◀ Mover Nave Izq
+            ◀ Mover Nave Izq (o tecla ◀)
           </Button>
           <Button
             variant="primary"
             size="sm"
             onClick={() => handleFireAtMeteor(selectedCannon, shipLane)}
           >
-            🔥 DISPARAR {selectedCannon} EN CARRIL #{shipLane + 1}
+            🔥 DISPARAR CAÑÓN {selectedCannon} [ESPACIO]
           </Button>
           <Button
             variant="secondary"
             size="sm"
             onClick={() => setShipLane((l) => Math.min(3, l + 1))}
           >
-            Mover Nave Der ▶
+            Mover Nave Der ▶ (o tecla ▶)
           </Button>
         </div>
       </div>
 
-      {/* Bahía de 4 Cañones Láser (sintoniza el cañón y dispara al meteorito) */}
+      {/* Bahía de los 4 Cañones Láser — Solo muestra el nombre sin descripción */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 215px), 1fr))',
+          gridTemplateColumns: 'repeat(4, 1fr)',
           gap: '10px',
         }}
       >
-        {CANNONS.map((cannon) => {
+        {CANNONS.map((cannon, cIdx) => {
           const isSelected = selectedCannon === cannon.id;
           return (
             <button
@@ -329,29 +581,43 @@ const SpaceLexerGame: React.FC<{
               type="button"
               onClick={() => {
                 setSelectedCannon(cannon.id);
-                handleFireAtMeteor(cannon.id, targetLane);
+                handleFireAtMeteor(cannon.id, shipLane);
               }}
               style={{
-                textAlign: 'left',
-                padding: '10px 14px',
+                textAlign: 'center',
+                padding: '12px 10px',
                 borderRadius: 'var(--radius-md)',
                 backgroundColor: isSelected
-                  ? 'rgba(37, 99, 235, 0.25)'
-                  : 'rgba(15, 23, 42, 0.85)',
+                  ? 'rgba(37, 99, 235, 0.35)'
+                  : 'rgba(15, 23, 42, 0.88)',
                 border: `2px solid ${isSelected ? cannon.color : 'var(--line)'}`,
                 color: '#FFFFFF',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
                 gap: '4px',
+                boxShadow: isSelected ? `0 0 16px ${cannon.color}55` : 'none',
                 transition: 'all 0.15s ease',
               }}
             >
-              <strong style={{ fontSize: '0.85rem', color: cannon.color }}>
+              <span
+                style={{
+                  fontSize: '0.92rem',
+                  fontWeight: 800,
+                  color: cannon.color,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {cannon.shortName === 'ID' && '⚡'}
+                {cannon.shortName === 'NUM' && '🟣'}
+                {cannon.shortName === 'OP' && '🟠'}
+                {cannon.shortName === 'RES' && '🟢'}{' '}
                 {cannon.name}
-              </strong>
-              <span style={{ fontSize: '0.73rem', color: 'var(--muted)' }}>
-                {cannon.desc}
+              </span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                [TAB o Tecla {cIdx + 1}]
               </span>
             </button>
           );
@@ -482,6 +748,7 @@ const AstConstellationGame: React.FC<{
 
   const [completedEdgeIds, setCompletedEdgeIds] = useState<string[]>([]);
   const [selectedFirstPoint, setSelectedFirstPoint] = useState<StarPoint | null>(null);
+  const [focusedPtIdx, setFocusedPtIdx] = useState(0);
 
   const nextRequiredEdge = edges[completedEdgeIds.length];
 
@@ -530,10 +797,79 @@ const AstConstellationGame: React.FC<{
     }
   };
 
+  // Referencia para evitar cierres obsoletos en los atajos de teclado
+  const latestAstRef = useRef({
+    focusedPtIdx,
+    points,
+    handleClickStarPoint,
+  });
+  useEffect(() => {
+    latestAstRef.current = {
+      focusedPtIdx,
+      points,
+      handleClickStarPoint,
+    };
+  });
+
+  // Escuchador de teclado: Flechas ◀ / ▶ para seleccionar y ESPACIO / ENTER para conectar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      const { points: pts, focusedPtIdx: fIdx, handleClickStarPoint: hClick } = latestAstRef.current;
+      if (pts.length === 0) return;
+
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setFocusedPtIdx((i) => (i - 1 + pts.length) % pts.length);
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D' || e.key === 'Tab') {
+        e.preventDefault();
+        setFocusedPtIdx((i) => (i + 1) % pts.length);
+      } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        if (pts[fIdx]) {
+          hClick(pts[fIdx]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   if (!nextRequiredEdge) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 14px',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
+          fontSize: '0.78rem',
+        }}
+      >
+        <span style={{ color: 'var(--green)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES TECLADO:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> Seleccionar Estrella
+          </span>
+          <span>
+            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Conectar Nodo AST
+          </span>
+        </div>
+      </div>
+
       <div
         style={{
           padding: '16px',
@@ -551,7 +887,7 @@ const AstConstellationGame: React.FC<{
           </span>
           <span style={{ fontSize: '0.8rem', color: 'var(--blue-bright)', fontFamily: 'var(--font-mono)' }}>
             {selectedFirstPoint
-              ? `⚡ Origen fijado en [${selectedFirstPoint.label}] → Ahora haz clic en el nodo hijo destino`
+              ? `⚡ Origen fijado en [${selectedFirstPoint.label}] → Ahora conecta con el nodo hijo destino`
               : `Objetivo actual: Conecta [${nextRequiredEdge.parentLabel}] ➔ [${nextRequiredEdge.childLabel}]`}
           </span>
         </div>
@@ -561,7 +897,7 @@ const AstConstellationGame: React.FC<{
           viewBox="0 0 100 100"
           style={{
             width: '100%',
-            height: '250px',
+            height: '260px',
             backgroundColor: 'rgba(5, 10, 22, 0.85)',
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--line-strong)',
@@ -594,17 +930,33 @@ const AstConstellationGame: React.FC<{
           })}
 
           {/* Puntos Estelares Interactivos */}
-          {points.map((pt) => {
+          {points.map((pt, pIdx) => {
             const isSelected = selectedFirstPoint?.id === pt.id;
+            const isFocused = focusedPtIdx === pIdx;
             const isTargetParent = nextRequiredEdge.parentId === pt.id;
             const isTargetChild = nextRequiredEdge.childId === pt.id;
 
             return (
               <g
                 key={pt.id}
-                onClick={() => handleClickStarPoint(pt)}
+                onClick={() => {
+                  setFocusedPtIdx(pIdx);
+                  handleClickStarPoint(pt);
+                }}
                 style={{ cursor: 'pointer' }}
               >
+                {/* Halo de foco por teclado */}
+                {isFocused && (
+                  <circle
+                    cx={pt.x}
+                    cy={pt.y}
+                    r="9.5"
+                    fill="none"
+                    stroke="#10B981"
+                    strokeWidth="0.8"
+                    strokeDasharray="1.5 1"
+                  />
+                )}
                 {isSelected && (
                   <circle
                     cx={pt.x}
@@ -627,8 +979,8 @@ const AstConstellationGame: React.FC<{
                       ? '#10B981'
                       : '#1E293B'
                   }
-                  stroke="#FFFFFF"
-                  strokeWidth="1"
+                  stroke={isFocused ? '#10B981' : '#FFFFFF'}
+                  strokeWidth="1.2"
                 />
                 <text
                   x={pt.x}
@@ -649,32 +1001,41 @@ const AstConstellationGame: React.FC<{
         {/* Botones de Nodos Estelares accesibles por teclado y ratón */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>
-            Nodos en el mapa estelar (haz clic en 1° Padre y 2° Hijo):
+            Nodos en el mapa estelar (pulsa ◀ / ▶ o haz clic):
           </span>
-          {points.map((pt) => {
+          {points.map((pt, pIdx) => {
             const isSelected = selectedFirstPoint?.id === pt.id;
+            const isFocused = focusedPtIdx === pIdx;
             return (
               <button
                 key={pt.id}
                 type="button"
-                onClick={() => handleClickStarPoint(pt)}
+                onClick={() => {
+                  setFocusedPtIdx(pIdx);
+                  handleClickStarPoint(pt);
+                }}
                 style={{
                   padding: '6px 12px',
                   borderRadius: '999px',
                   backgroundColor: isSelected
                     ? 'rgba(56, 189, 248, 0.28)'
+                    : isFocused
+                    ? 'rgba(16, 185, 129, 0.25)'
                     : 'rgba(15, 23, 42, 0.85)',
                   border: isSelected
                     ? '2px solid var(--blue-bright)'
+                    : isFocused
+                    ? '2px solid var(--green)'
                     : '1px solid var(--line-strong)',
                   color: '#FFFFFF',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '0.8rem',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  boxShadow: isFocused ? '0 0 10px rgba(16, 185, 129, 0.4)' : 'none',
                 }}
               >
-                ⭐ {pt.label}
+                ⭐ {pt.label} {isFocused ? '◀' : ''}
               </button>
             );
           })}
@@ -685,7 +1046,7 @@ const AstConstellationGame: React.FC<{
 };
 
 // ============================================================================
-// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D con Teclado y D-Pad)
+// 3. FASE SEMÁNTICA: 🧭 SYMBOL MAZE (Laberinto 2D con Teclado Flechas y D-Pad)
 // ============================================================================
 const SymbolMazeGame: React.FC<{
   phase: PhaseResult;
@@ -735,7 +1096,7 @@ const SymbolMazeGame: React.FC<{
         userAnswer: 'Intentaste usar una variable en una línea anterior a su asignación',
         whatWentWrong:
           'En MiniArit el alcance es secuencial por línea: una variable solo existe después de la línea donde se le asigna un valor.',
-        whatShouldBeDone: `Sigue el corredor principal recogiendo las llaves de declaración en orden de línea antes de cruzar las compuertas.`,
+        whatShouldBeDone: `Sigue el corredor principal con las flechas del teclado recogiendo las llaves de declaración antes de cruzar compuertas.`,
       });
       return;
     }
@@ -784,8 +1145,65 @@ const SymbolMazeGame: React.FC<{
     }
   };
 
+  // Referencia para evitar cierres obsoletos al pulsar flechas de teclado
+  const latestMazeRef = useRef({ dronePos, tryMove });
+  useEffect(() => {
+    latestMazeRef.current = { dronePos, tryMove };
+  });
+
+  // Escuchador de teclado: Flechas de dirección y teclas WASD
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      const { dronePos: dp, tryMove: tm } = latestMazeRef.current;
+
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        tm(dp.r - 1, dp.c);
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        tm(dp.r + 1, dp.c);
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        tm(dp.r, dp.c - 1);
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        tm(dp.r, dp.c + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 14px',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
+          fontSize: '0.78rem',
+        }}
+      >
+        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES TECLADO:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>W/A/S/D</kbd> Mover Dron 🤖 por el Laberinto
+          </span>
+        </div>
+      </div>
       <div
         style={{
           padding: '16px',
@@ -929,6 +1347,7 @@ const PostOrderSniperGame: React.FC<{
   );
 
   const [shotCount, setShotCount] = useState(0);
+  const [focusedPlateIdx, setFocusedPlateIdx] = useState(0);
 
   // Mezclamos determinísticamente el orden visual de las dianas en la galería para que el jugador deba apuntar en el orden postorden real
   const galleryTargets = useMemo(() => {
@@ -981,79 +1400,156 @@ const PostOrderSniperGame: React.FC<{
     }
   };
 
+  const latestSniperRef = useRef({
+    focusedPlateIdx,
+    galleryTargets,
+    handleShootPlate,
+  });
+  useEffect(() => {
+    latestSniperRef.current = {
+      focusedPlateIdx,
+      galleryTargets,
+      handleShootPlate,
+    };
+  });
+
+  // Escuchador de teclado: Flechas para mover la mira y ESPACIO / ENTER para disparar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { galleryTargets: gt, focusedPlateIdx: fp, handleShootPlate: hs } = latestSniperRef.current;
+      if (gt.length === 0) return;
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setFocusedPlateIdx((i) => (i - 1 + gt.length) % gt.length);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'd' || e.key === 'D' || e.key === 'Tab') {
+        e.preventDefault();
+        setFocusedPlateIdx((i) => (i + 1) % gt.length);
+      } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        if (gt[fp]) {
+          hs(gt[fp]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   if (!expectedTarget) return null;
 
   return (
-    <div
-      style={{
-        padding: '16px',
-        borderRadius: 'var(--radius-md)',
-        background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 82%)',
-        border: '1px solid var(--blue-bright)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-          🎯 CAMPO DE TIRO POST-ORDER SNIPER — Dianas Derribadas: {shotCount} / {instrs.length}
-        </span>
-        <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-          Derriba todas las dianas de la galería en el orden exacto de emisión TAC (postorden)
-        </span>
-      </div>
-
-      {/* Galería con todas las dianas simultáneas */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
-          gap: '10px',
-          padding: '12px',
-          backgroundColor: 'rgba(6, 11, 23, 0.8)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 14px',
           borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--line)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
+          fontSize: '0.78rem',
         }}
       >
-        {galleryTargets.map((plate) => {
-          const alreadyShot = !plate.isDecoy && plate.orderIndex < shotCount;
-          return (
-            <button
-              key={plate.id}
-              type="button"
-              disabled={alreadyShot}
-              onClick={() => handleShootPlate(plate)}
-              style={{
-                padding: '14px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: alreadyShot
-                  ? 'rgba(16, 185, 129, 0.15)'
-                  : 'rgba(15, 23, 42, 0.92)',
-                border: alreadyShot
-                  ? '1px solid var(--green)'
-                  : '2px solid var(--blue-bright)',
-                color: alreadyShot ? 'var(--green)' : '#FFFFFF',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                cursor: alreadyShot ? 'default' : 'crosshair',
-                opacity: alreadyShot ? 0.65 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-              }}
-            >
-              <span>
-                {alreadyShot ? '💥' : '🎯'} {plate.text}
-              </span>
-              <span style={{ fontSize: '0.75rem', color: alreadyShot ? 'var(--green)' : 'var(--blue-bright)' }}>
-                {alreadyShot ? 'EMITIDA' : '⊕ DISPARAR'}
-              </span>
-            </button>
-          );
-        })}
+        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES TECLADO:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> Mover Mira Telescópica ⊕
+          </span>
+          <span>
+            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Disparar Diana TAC
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.16), #070d19 82%)',
+          border: '1px solid var(--blue-bright)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+            🎯 CAMPO DE TIRO POST-ORDER SNIPER — Dianas Derribadas: {shotCount} / {instrs.length}
+          </span>
+          <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+            Derriba todas las dianas de la galería en el orden exacto de emisión TAC (postorden)
+          </span>
+        </div>
+
+        {/* Galería con todas las dianas simultáneas */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+            gap: '10px',
+            padding: '12px',
+            backgroundColor: 'rgba(6, 11, 23, 0.8)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--line)',
+          }}
+        >
+          {galleryTargets.map((plate, pIdx) => {
+            const alreadyShot = !plate.isDecoy && plate.orderIndex < shotCount;
+            const isFocused = focusedPlateIdx === pIdx;
+            return (
+              <button
+                key={plate.id}
+                type="button"
+                disabled={alreadyShot}
+                onClick={() => {
+                  setFocusedPlateIdx(pIdx);
+                  handleShootPlate(plate);
+                }}
+                style={{
+                  padding: '14px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: alreadyShot
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : isFocused
+                    ? 'rgba(56, 189, 248, 0.28)'
+                    : 'rgba(15, 23, 42, 0.92)',
+                  border: alreadyShot
+                    ? '1px solid var(--green)'
+                    : isFocused
+                    ? '2px solid #38BDF8'
+                    : '1px solid var(--line-strong)',
+                  color: alreadyShot ? 'var(--green)' : '#FFFFFF',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  fontSize: '0.88rem',
+                  cursor: alreadyShot ? 'default' : 'crosshair',
+                  opacity: alreadyShot ? 0.65 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  boxShadow: isFocused ? '0 0 16px rgba(56, 189, 248, 0.5)' : 'none',
+                }}
+              >
+                <span>
+                  {alreadyShot ? '💥' : isFocused ? '⊕' : '🎯'} {plate.text}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: alreadyShot ? 'var(--green)' : 'var(--blue-bright)' }}>
+                  {alreadyShot ? 'EMITIDA' : isFocused ? '⊕ [ESPACIO]' : 'DISPARAR'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1121,108 +1617,184 @@ const OptimizerDefenseGame: React.FC<{
     }
   };
 
+  const latestDefenseRef = useRef({
+    handleFireTurret,
+  });
+  useEffect(() => {
+    latestDefenseRef.current = {
+      handleFireTurret,
+    };
+  });
+
+  // Escuchador de teclado: teclas 1, 2, 3 para disparar las torretas
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { handleFireTurret: hf } = latestDefenseRef.current;
+
+      if (e.key === '1') {
+        e.preventDefault();
+        hf('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        hf('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)');
+      } else if (e.key === '3') {
+        e.preventDefault();
+        hf('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   if (!currentWave) return null;
 
   return (
-    <div
-      style={{
-        padding: '16px',
-        borderRadius: 'var(--radius-md)',
-        background: 'rgba(10, 20, 38, 0.92)',
-        border: '1px solid var(--green)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
-          🛡️ TOWER DEFENSE DEL OPTIMIZADOR — Oleada {waveIdx + 1} de {waves.length} ({phase.summary})
-        </span>
-      </div>
-
-      {/* Carril de Cinta Transportadora */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
       <div
         style={{
-          padding: '14px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '8px 14px',
           borderRadius: 'var(--radius-sm)',
-          backgroundColor: 'rgba(6, 11, 23, 0.88)',
-          border: '1px dashed var(--blue-bright)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(16, 185, 129, 0.4)',
+          fontSize: '0.78rem',
+        }}
+      >
+        <span style={{ color: 'var(--green)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES TECLADO:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>1</kbd> Torreta Propagación
+          </span>
+          <span>
+            <kbd style={kbdStyle}>2</kbd> Prensa Plegado (Folding)
+          </span>
+          <span>
+            <kbd style={kbdStyle}>3</kbd> Láser Destructor DCE
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(10, 20, 38, 0.92)',
+          border: '1px solid var(--green)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '6px',
-          fontFamily: 'var(--font-mono)',
+          gap: '14px',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.76rem', color: 'var(--blue-bright)' }}>
-            {currentWave.title}
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--green)', fontWeight: 700 }}>
+            🛡️ TOWER DEFENSE DEL OPTIMIZADOR — Oleada {waveIdx + 1} de {waves.length} ({phase.summary})
           </span>
-          <Chip label="➔ Cinta hacia 🧠 Núcleo CPU" variant="cyan" />
         </div>
-        <strong style={{ color: '#FFFFFF', fontSize: '0.96rem' }}>
-          📦 En cinta: {currentWave.packet}
-        </strong>
-      </div>
 
-      {/* 3 Torretas Defensivas sobre la Cinta */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
-          gap: '10px',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => handleFireTurret('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes')}
+        {/* Carril de Cinta Transportadora */}
+        <div
           style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(37, 99, 235, 0.2)',
-            border: '2px solid var(--blue-bright)',
-            color: '#FFFFFF',
-            fontWeight: 700,
-            cursor: 'pointer',
-            textAlign: 'left',
+            padding: '14px 16px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'rgba(6, 11, 23, 0.88)',
+            border: '1px dashed var(--blue-bright)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            fontFamily: 'var(--font-mono)',
           }}
         >
-          🔵 Torreta 1: Rayo Propagador (Reemplazar variables por constantes)
-        </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.76rem', color: 'var(--blue-bright)' }}>
+              {currentWave.title}
+            </span>
+            <Chip label="➔ Cinta hacia 🧠 Núcleo CPU" variant="cyan" />
+          </div>
+          <strong style={{ color: '#FFFFFF', fontSize: '0.96rem' }}>
+            📦 En cinta: {currentWave.packet}
+          </strong>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => handleFireTurret('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)')}
+        {/* 3 Torretas Defensivas sobre la Cinta */}
+        <div
           style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(16, 185, 129, 0.2)',
-            border: '2px solid var(--green)',
-            color: '#FFFFFF',
-            fontWeight: 700,
-            cursor: 'pointer',
-            textAlign: 'left',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+            gap: '10px',
           }}
         >
-          🟢 Torreta 2: Prensa Folding (Calcular operaciones constantes)
-        </button>
+          <button
+            type="button"
+            onClick={() => handleFireTurret('PROP', '🔵 Torreta 1: Rayo Propagador de Constantes')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(37, 99, 235, 0.2)',
+              border: '2px solid var(--blue-bright)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <span>🔵 Torreta 1: Rayo Propagador</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 1 o Clic]</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => handleFireTurret('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)')}
-          style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(244, 63, 94, 0.18)',
-            border: '2px solid var(--red)',
-            color: '#FFFFFF',
-            fontWeight: 700,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-        >
-          🔴 Torreta 3: Láser DCE (Desintegrar asignaciones muertas)
-        </button>
+          <button
+            type="button"
+            onClick={() => handleFireTurret('FOLD', '🟢 Torreta 2: Prensa de Plegado (Constant Folding)')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(16, 185, 129, 0.2)',
+              border: '2px solid var(--green)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <span>🟢 Torreta 2: Prensa Folding</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 2 o Clic]</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleFireTurret('DCE', '🔴 Torreta 3: Láser Destructor DCE (Código Muerto)')}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(244, 63, 94, 0.18)',
+              border: '2px solid var(--red)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <span>🔴 Torreta 3: Láser DCE</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>[Pulsa Tecla 3 o Clic]</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1245,6 +1817,7 @@ const RegisterSwitchboardGame: React.FC<{
   );
 
   const [pcIdx, setPcIdx] = useState(0);
+  const [focusedOpcodeIdx, setFocusedOpcodeIdx] = useState(0);
   const currentIns = instrs[pcIdx];
 
   const expectedOpcode = useMemo(() => {
@@ -1300,99 +1873,186 @@ const RegisterSwitchboardGame: React.FC<{
     }
   };
 
+  const latestSwitchboardRef = useRef({
+    selectedReg,
+    focusedOpcodeIdx,
+    handleActivateOpcodeGate,
+  });
+  useEffect(() => {
+    latestSwitchboardRef.current = {
+      selectedReg,
+      focusedOpcodeIdx,
+      handleActivateOpcodeGate,
+    };
+  });
+
+  // Escuchador de teclado: Flechas ◀ / ▶ o teclas 0-7 para registros, ▲ / ▼ para opcode y ESPACIO / ENTER para emitir
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { focusedOpcodeIdx: fo, handleActivateOpcodeGate: ha } = latestSwitchboardRef.current;
+
+      if (['0', '1', '2', '3', '4', '5', '6', '7'].includes(e.key)) {
+        e.preventDefault();
+        setSelectedReg(parseInt(e.key, 10));
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        setSelectedReg((r) => ((r ?? 0) - 1 + 8) % 8);
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        e.preventDefault();
+        setSelectedReg((r) => ((r ?? 0) + 1) % 8);
+      } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        setFocusedOpcodeIdx((i) => (i - 1 + ISA_OPCODES.length) % ISA_OPCODES.length);
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S' || e.key === 'Tab') {
+        e.preventDefault();
+        setFocusedOpcodeIdx((i) => (i + 1) % ISA_OPCODES.length);
+      } else if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        ha(ISA_OPCODES[fo]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   if (!currentIns) return null;
 
   return (
-    <div
-      style={{
-        padding: '16px',
-        borderRadius: 'var(--radius-md)',
-        background: 'rgba(10, 20, 38, 0.92)',
-        border: '1px solid var(--blue-bright)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-        <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
-          ⚡ TABLERO ELECTRÓNICO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc}: Armar [{currentIns.text}]
-        </span>
-        <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-          1° Conecta el Chip R0–R7 &bull; 2° Pulsa la Compuerta Opcode ISA
-        </span>
-      </div>
-
-      {/* Banco interactivo de los 8 chips de registros R0..R7 */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* Barra HUD de controles interactivos con el teclado */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(8, minmax(56px, 1fr))',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
           gap: '8px',
-          overflowX: 'auto',
+          padding: '8px 14px',
+          borderRadius: 'var(--radius-sm)',
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '1px solid rgba(56, 189, 248, 0.4)',
+          fontSize: '0.78rem',
         }}
       >
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((r) => {
-          const isWired = selectedReg === r;
-          return (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setSelectedReg(r)}
-              style={{
-                padding: '10px 6px',
-                borderRadius: '6px',
-                textAlign: 'center',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.82rem',
-                fontWeight: 800,
-                backgroundColor: isWired ? 'rgba(16, 185, 129, 0.28)' : 'rgba(15, 23, 42, 0.75)',
-                border: isWired ? '2px solid var(--green)' : '1px solid var(--line)',
-                color: isWired ? '#FFFFFF' : 'var(--muted)',
-                cursor: 'pointer',
-              }}
-            >
-              🔌 R{r}
-            </button>
-          );
-        })}
+        <span style={{ color: 'var(--blue-bright)', fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          🎮 CONTROLES TECLADO:
+        </span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <kbd style={kbdStyle}>◀</kbd> <kbd style={kbdStyle}>▶</kbd> o <kbd style={kbdStyle}>0-7</kbd> Cablear Chip R0–R7
+          </span>
+          <span>
+            <kbd style={kbdStyle}>▲</kbd> <kbd style={kbdStyle}>▼</kbd> Seleccionar Opcode
+          </span>
+          <span>
+            <kbd style={kbdStyle}>ESPACIO</kbd> o <kbd style={kbdStyle}>ENTER</kbd> Emitir Ciclo
+          </span>
+        </div>
       </div>
 
-      {/* Panel de las 9 Compuertas de Opcode ISA */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-          gap: '8px',
+          padding: '16px',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(10, 20, 38, 0.92)',
+          border: '1px solid var(--blue-bright)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
         }}
       >
-        {ISA_OPCODES.map((op) => {
-          const isTarget = op === expectedOpcode;
-          return (
-            <button
-              key={op}
-              type="button"
-              onClick={() => handleActivateOpcodeGate(op)}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-sm)',
-                backgroundColor: isTarget
-                  ? 'rgba(37, 99, 235, 0.25)'
-                  : 'rgba(15, 23, 42, 0.85)',
-                border: isTarget
-                  ? '2px solid var(--blue-bright)'
-                  : '1px solid var(--line-strong)',
-                color: '#FFFFFF',
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 700,
-                fontSize: '0.84rem',
-                cursor: 'pointer',
-              }}
-            >
-              ⚡ {op}
-            </button>
-          );
-        })}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--blue-bright)', fontWeight: 700 }}>
+            ⚡ TABLERO ELECTRÓNICO DE REGISTROS (R0–R7) — Ciclo PC={currentIns.pc}: Armar [{currentIns.text}]
+          </span>
+          <span style={{ fontSize: '0.76rem', color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
+            1° Conecta el Chip R0–R7 &bull; 2° Pulsa la Compuerta Opcode ISA
+          </span>
+        </div>
+
+        {/* Banco interactivo de los 8 chips de registros R0..R7 */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(8, minmax(56px, 1fr))',
+            gap: '8px',
+            overflowX: 'auto',
+          }}
+        >
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((r) => {
+            const isWired = selectedReg === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setSelectedReg(r)}
+                style={{
+                  padding: '10px 6px',
+                  borderRadius: '6px',
+                  textAlign: 'center',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  backgroundColor: isWired ? 'rgba(16, 185, 129, 0.28)' : 'rgba(15, 23, 42, 0.75)',
+                  border: isWired ? '2px solid var(--green)' : '1px solid var(--line)',
+                  color: isWired ? '#FFFFFF' : 'var(--muted)',
+                  cursor: 'pointer',
+                  boxShadow: isWired ? '0 0 12px rgba(16, 185, 129, 0.4)' : 'none',
+                }}
+              >
+                🔌 R{r}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel de las 9 Compuertas de Opcode ISA */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+            gap: '8px',
+          }}
+        >
+          {ISA_OPCODES.map((op, oIdx) => {
+            const isTarget = op === expectedOpcode;
+            const isFocused = focusedOpcodeIdx === oIdx;
+            return (
+              <button
+                key={op}
+                type="button"
+                onClick={() => {
+                  setFocusedOpcodeIdx(oIdx);
+                  handleActivateOpcodeGate(op);
+                }}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: isFocused
+                    ? 'rgba(56, 189, 248, 0.35)'
+                    : isTarget
+                    ? 'rgba(37, 99, 235, 0.25)'
+                    : 'rgba(15, 23, 42, 0.85)',
+                  border: isFocused
+                    ? '2px solid #38BDF8'
+                    : isTarget
+                    ? '2px solid var(--blue-bright)'
+                    : '1px solid var(--line-strong)',
+                  color: '#FFFFFF',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  boxShadow: isFocused ? '0 0 14px rgba(56, 189, 248, 0.5)' : 'none',
+                }}
+              >
+                ⚡ {op} {isFocused ? '◀' : ''}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
