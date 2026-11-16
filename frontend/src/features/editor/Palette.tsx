@@ -16,20 +16,21 @@ interface PaletteItem {
 }
 
 const ITEMS: PaletteItem[] = [
-  { type: 'var', uiType: 'variable', label: 'x (Variable)', desc: 'Identificador' },
-  { type: 'num', uiType: 'number', label: '42 (Número)', desc: 'Constante entera' },
-  { type: '+', uiType: 'operation', label: '+ (Suma)', desc: 'Suma aritmética' },
-  { type: '-', uiType: 'operation', label: '- (Resta)', desc: 'Resta aritmética' },
-  { type: '*', uiType: 'operation', label: '* (Multiplicación)', desc: 'Multiplicación' },
+  { type: 'var', uiType: 'variable', label: 'x (Variable)', desc: 'Identificador de variable' },
+  { type: 'num', uiType: 'number', label: '42 (Número)', desc: 'Constante entera de 32 bits' },
+  { type: '+', uiType: 'operation', label: '+ (Suma)', desc: 'Suma aritmética binaria' },
+  { type: '-', uiType: 'operation', label: '- (Resta)', desc: 'Resta aritmética binaria' },
+  { type: '*', uiType: 'operation', label: '* (Multiplicación)', desc: 'Multiplicación (mayor precedencia)' },
+  { type: 'neg', uiType: 'operation', label: '-x (Negación)', desc: 'Menos unario para invertir signo' },
   { type: 'assign', uiType: 'assign', label: 'x = expr', desc: 'Sentencia de asignación' },
-  { type: 'print', uiType: 'print', label: 'print(expr)', desc: 'Sentencia de salida' },
+  { type: 'print', uiType: 'print', label: 'print(expr)', desc: 'Sentencia de salida estándar' },
 ];
 
 export const Palette: React.FC<PaletteProps> = ({ onSelectFragment, disabled }) => {
   return (
     <Panel title="Paleta de Fragmentos (7 tipos)">
       <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '12px' }}>
-        Arrastra un fragmento al lienzo o selecciónalo con el teclado y pulsa <strong>Enter</strong> para insertarlo.
+        Arrastra cualquier fragmento al lienzo o haz clic / pulsa <strong>Enter</strong> sobre él para construir o anidar expresiones.
       </p>
 
       <div
@@ -37,7 +38,7 @@ export const Palette: React.FC<PaletteProps> = ({ onSelectFragment, disabled }) 
         aria-label="Fragmentos disponibles para el editor"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
           gap: '10px',
         }}
       >

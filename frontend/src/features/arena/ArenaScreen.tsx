@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { PHASES_META } from '../../domain/phases';
 import { es } from '../../i18n/es';
@@ -7,10 +7,13 @@ import { usePlayerStore } from '../../state/playerStore';
 import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
 import { Panel } from '../../ui/Panel';
+import { PhaseMiniGame } from '../game/PhaseMiniGame';
 import { ExplainPanel } from './ExplainPanel';
 import { PhasePlayer } from './PhasePlayer';
 import { PhaseStepper } from './PhaseStepper';
+import { AsmView } from './views/AsmView';
 import { AstView } from './views/AstView';
+import { HexView } from './views/HexView';
 import { IrView } from './views/IrView';
 import { OptView } from './views/OptView';
 import { SymbolsView } from './views/SymbolsView';
@@ -23,7 +26,10 @@ export const ArenaScreen: React.FC = () => {
     activePhase,
     stepIndex,
     setActivePhase,
+    setStepIndex,
   } = usePlayerStore();
+
+  const [heroGameActive, setHeroGameActive] = useState(true);
 
   // Guardia de navegación: sin traza redirige a /
   if (!trace) {
@@ -35,13 +41,23 @@ export const ArenaScreen: React.FC = () => {
   const errorPhase = trace.phases.find((p) => p.status === 'error')?.id || null;
 
   const totalSteps = currentPhaseData?.steps.length || 0;
-  const currentStep = totalSteps > 0 && currentPhaseData?.steps[stepIndex]
-    ? currentPhaseData.steps[stepIndex]
-    : null;
+  const currentStep =
+    totalSteps > 0 && currentPhaseData?.steps[stepIndex]
+      ? currentPhaseData.steps[stepIndex]
+      : null;
+
+  const handleAdvanceNextPhase = () => {
+    const idx = PHASES_META.findIndex((p) => p.id === activePhase);
+    if (idx >= 0 && idx + 1 < PHASES_META.length) {
+      setActivePhase(PHASES_META[idx + 1].id);
+    } else if (trace.ok) {
+      navigate('/resultado');
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, maxWidth: '100%' }}>
-      {/* Encabezado con navegación */}
+      {/* Encabezado con navegación y selector de Modo Héroe */}
       <header
         style={{
           display: 'flex',
@@ -63,11 +79,18 @@ export const ArenaScreen: React.FC = () => {
             {es.app.nav.arena}
           </h2>
           <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-            Animación paso a paso de las fases del compilador MiniArit.
+            Representa cada proceso del compilador en el Mini-Juego Héroe o inspecciona la animación 1 a 1.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant={heroGameActive ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setHeroGameActive((v) => !v)}
+          >
+            {heroGameActive ? '🎮 Mini-Juego Activo' : '🎮 Activar Mini-Juego'}
+          </Button>
           <Button variant="secondary" size="sm" onClick={() => navigate('/')}>
             ← Volver al Editor
           </Button>
@@ -87,6 +110,15 @@ export const ArenaScreen: React.FC = () => {
         errorPhase={errorPhase}
         onSelectPhase={(phase) => setActivePhase(phase)}
       />
+
+      {/* Mini-Juego Interactivo de la Fase Actual (Hero-Compiler) */}
+      {heroGameActive && currentPhaseData && currentPhaseData.status === 'ok' && (
+        <PhaseMiniGame
+          phase={currentPhaseData}
+          onCompletePhase={handleAdvanceNextPhase}
+          onSyncStepIndex={(idx) => setStepIndex(idx)}
+        />
+      )}
 
       {/* Reproductor interactivo 1 a 1 de la fase actual */}
       {currentPhaseData && (
@@ -161,7 +193,7 @@ export const ArenaScreen: React.FC = () => {
             />
           )}
 
-          {/* 5. Vista de Optimización (Fase 4) */}
+          {/* 5. Vista de Optimización (Fase 5) */}
           {activePhase === 'optimization' && currentPhaseData.output?.instructions && (
             <OptView
               instructions={currentPhaseData.output.instructions}
@@ -171,20 +203,24 @@ export const ArenaScreen: React.FC = () => {
             />
           )}
 
-          {/* Fases 5-7: Resumen e información preliminar */}
-          {!['lexical', 'syntactic', 'semantic', 'ir', 'optimization'].includes(activePhase) && (
-            <div
-              style={{
-                padding: '24px',
-                textAlign: 'center',
-                color: 'var(--muted)',
-                backgroundColor: 'var(--panel-2)',
-                borderRadius: 'var(--radius-md)',
-                fontStyle: 'italic',
-              }}
-            >
-              Visualización especializada de {currentPhaseData.name} lista para las fases F5 a F7.
-            </div>
+          {/* 6. Vista de Ensamblador ISA (Fase 6) */}
+          {activePhase === 'assembly' && currentPhaseData.output?.instructions && (
+            <AsmView
+              instructions={currentPhaseData.output.instructions}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
+          )}
+
+          {/* 7. Vista Hexadecimal de 8 Bytes (Fase 7) */}
+          {activePhase === 'binary' && currentPhaseData.output?.rows && (
+            <HexView
+              hex={currentPhaseData.output.hex || ''}
+              size={currentPhaseData.output.size || 0}
+              rows={currentPhaseData.output.rows}
+              stepIndex={stepIndex}
+              steps={currentPhaseData.steps}
+            />
           )}
         </Panel>
       )}

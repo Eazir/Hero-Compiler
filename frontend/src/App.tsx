@@ -144,7 +144,7 @@ export const App: React.FC = () => {
           color: 'var(--muted)',
         }}
       >
-        <span>CompiLab &copy; 2026 — MiniArit Compiler Simulator</span>
+        <span>Hero-Compiler &copy; 2026 — MiniArit Compiler Simulator &amp; Mini-Games</span>
         <span>7 fases de compilación &bull; ISA 8-bytes &bull; 8 Registros</span>
       </footer>
     </div>

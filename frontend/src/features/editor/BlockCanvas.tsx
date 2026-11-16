@@ -1,5 +1,5 @@
 import React from 'react';
-import { Expr, FragmentType, Program, Stmt, bin, num, v } from '../../domain/blocks';
+import { Expr, FragmentType, Program, Stmt, bin, getNodeAtPath, num, v } from '../../domain/blocks';
 import { BlockPath } from '../../domain/sourceMap';
 import { Panel } from '../../ui/Panel';
 
@@ -11,6 +11,11 @@ interface BlockCanvasProps {
   onDropFragment: (type: FragmentType, slot?: BlockPath) => void;
   onUpdateNode: (path: BlockPath, replacement: Expr | Stmt) => void;
   onUpdateVarName: (index: number, name: string) => void;
+  onMoveStmt?: (index: number, direction: 'up' | 'down') => void;
+  onDuplicateStmt?: (index: number) => void;
+  onToggleStmtKind?: (index: number) => void;
+  onSwapOperands?: (path: BlockPath) => void;
+  onUnwrapExpr?: (path: BlockPath) => void;
 }
 
 export const BlockCanvas: React.FC<BlockCanvasProps> = ({
@@ -21,6 +26,11 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
   onDropFragment,
   onUpdateNode,
   onUpdateVarName,
+  onMoveStmt,
+  onDuplicateStmt,
+  onToggleStmtKind,
+  onSwapOperands,
+  onUnwrapExpr,
 }) => {
   const isSlotActive = (path: BlockPath) => {
     if (!activeSlot) return false;
@@ -41,6 +51,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
     }
   };
 
+  const activeNode = activeSlot ? getNodeAtPath(program, activeSlot) : null;
+
   const renderExpr = (expr: Expr, path: BlockPath): React.ReactNode => {
     const active = isSlotActive(path);
 
@@ -50,8 +62,8 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
       gap: '4px',
       padding: '4px 8px',
       borderRadius: 'var(--radius-sm)',
-      backgroundColor: active ? 'rgba(255, 184, 77, 0.2)' : 'var(--panel-2)',
-      border: active ? '2px solid var(--amber)' : '1px dashed var(--line)',
+      backgroundColor: active ? 'rgba(16, 185, 129, 0.22)' : 'var(--panel-2)',
+      border: active ? '2px solid var(--green)' : '1px dashed var(--line)',
       cursor: 'pointer',
       transition: 'all 0.15s ease',
     };
@@ -87,7 +99,10 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               type="number"
               value={expr.value}
               aria-label="Editar valor numérico"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectSlot(path);
+              }}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
                 onUpdateNode(path, num(isNaN(val) ? 0 : val));
@@ -139,7 +154,10 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               value={expr.name}
               maxLength={8}
               aria-label="Editar identificador de variable"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectSlot(path);
+              }}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
                 onUpdateNode(path, v(val || 'x'));
@@ -168,7 +186,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
-              border: active ? '2px solid var(--amber)' : '1px solid var(--line)',
+              border: active ? '2px solid var(--green)' : '1px solid var(--line)',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -188,7 +206,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             onDrop={(e) => handleDrop(e, path)}
             style={{
               ...slotStyle,
-              border: active ? '2px solid var(--amber)' : '1px solid var(--line)',
+              border: active ? '2px solid var(--green)' : '1px solid var(--line)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
@@ -210,7 +228,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               style={{
                 padding: '2px 8px',
                 borderRadius: '4px',
-                backgroundColor: 'rgba(255, 184, 77, 0.2)',
+                backgroundColor: 'rgba(245, 158, 11, 0.2)',
                 border: '1px solid var(--amber)',
                 color: 'var(--amber)',
                 fontWeight: 700,
@@ -244,6 +262,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
           gap: '12px',
           minHeight: '44px',
           transition: 'border-color 0.15s ease',
+          flexWrap: 'wrap',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -259,8 +278,33 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
             {idx + 1}.
           </span>
 
+          {/* Botón para alternar entre Asignación y Print en cualquier línea */}
+          {onToggleStmtKind && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStmtKind(idx);
+              }}
+              title="Haz clic para alternar esta sentencia entre Asignación (x = ...) y Salida (print(...))"
+              style={{
+                fontSize: '0.7rem',
+                fontFamily: 'var(--font-mono)',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                backgroundColor:
+                  stmt.kind === 'assign' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(16, 185, 129, 0.15)',
+                color: stmt.kind === 'assign' ? 'var(--blue-bright)' : 'var(--green)',
+                border: '1px solid var(--line)',
+                cursor: 'pointer',
+              }}
+            >
+              {stmt.kind === 'assign' ? 'SET' : 'OUT'}
+            </button>
+          )}
+
           {stmt.kind === 'assign' ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={stmt.name}
@@ -273,7 +317,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
                 }}
                 style={{
                   width: `${Math.max(2, stmt.name.length + 1)}ch`,
-                  backgroundColor: 'rgba(94, 212, 232, 0.15)',
+                  backgroundColor: 'rgba(56, 189, 248, 0.15)',
                   border: '1px solid var(--cyan)',
                   borderRadius: '4px',
                   color: 'var(--cyan)',
@@ -290,7 +334,7 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
               {renderExpr(stmt.expr, [idx, 'expr'])}
             </div>
           ) : (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span
                 style={{
                   color: 'var(--green)',
@@ -314,31 +358,99 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemoveStmt(idx);
-          }}
-          aria-label={`Eliminar línea ${idx + 1}`}
-          title="Eliminar esta línea"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--muted)',
-            cursor: 'pointer',
-            fontSize: '1.2rem',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            minHeight: '36px',
-            minWidth: '36px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          ×
-        </button>
+        {/* Acciones de línea: Subir, Bajar, Duplicar y Eliminar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {onMoveStmt && (
+            <>
+              <button
+                type="button"
+                disabled={idx === 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveStmt(idx, 'up');
+                }}
+                title="Mover sentencia hacia arriba"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--line)',
+                  color: idx === 0 ? 'var(--line)' : 'var(--muted)',
+                  cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  padding: '4px 6px',
+                  borderRadius: '4px',
+                }}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                disabled={idx === program.length - 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveStmt(idx, 'down');
+                }}
+                title="Mover sentencia hacia abajo"
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--line)',
+                  color: idx === program.length - 1 ? 'var(--line)' : 'var(--muted)',
+                  cursor: idx === program.length - 1 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  padding: '4px 6px',
+                  borderRadius: '4px',
+                }}
+              >
+                ↓
+              </button>
+            </>
+          )}
+          {onDuplicateStmt && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicateStmt(idx);
+              }}
+              title="Duplicar esta sentencia"
+              style={{
+                background: 'none',
+                border: '1px solid var(--line)',
+                color: 'var(--blue-bright)',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                padding: '4px 6px',
+                borderRadius: '4px',
+              }}
+            >
+              ⧉
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveStmt(idx);
+            }}
+            aria-label={`Eliminar línea ${idx + 1}`}
+            title="Eliminar esta línea"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--muted)',
+              cursor: 'pointer',
+              fontSize: '1.2rem',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              minHeight: '36px',
+              minWidth: '36px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+        </div>
       </div>
     );
   };
@@ -355,6 +467,130 @@ export const BlockCanvas: React.FC<BlockCanvasProps> = ({
           minHeight: '180px',
         }}
       >
+        {/* Inspector de transformaciones rápidas cuando un nodo/expresión está seleccionado */}
+        {activeSlot && activeNode && 'kind' in activeNode && activeNode.kind !== 'assign' && activeNode.kind !== 'print' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '8px',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid var(--green)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.8rem',
+            }}
+          >
+            <span style={{ color: 'var(--green)', fontWeight: 700 }}>
+              ⚡ Transformar bloque seleccionado:
+            </span>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => onDropFragment('+', activeSlot)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--panel-2)',
+                  border: '1px solid var(--line-strong)',
+                  color: 'var(--text-pure)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                }}
+              >
+                + Sumar
+              </button>
+              <button
+                type="button"
+                onClick={() => onDropFragment('-', activeSlot)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--panel-2)',
+                  border: '1px solid var(--line-strong)',
+                  color: 'var(--text-pure)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                }}
+              >
+                - Restar
+              </button>
+              <button
+                type="button"
+                onClick={() => onDropFragment('*', activeSlot)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--panel-2)',
+                  border: '1px solid var(--line-strong)',
+                  color: 'var(--text-pure)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                }}
+              >
+                * Multiplicar
+              </button>
+              <button
+                type="button"
+                onClick={() => onDropFragment('neg', activeSlot)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--panel-2)',
+                  border: '1px solid var(--line-strong)',
+                  color: 'var(--amber)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                }}
+              >
+                -x Negar
+              </button>
+              {activeNode.kind === 'bin' && onSwapOperands && (
+                <button
+                  type="button"
+                  onClick={() => onSwapOperands(activeSlot)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--panel-2)',
+                    border: '1px solid var(--blue-bright)',
+                    color: 'var(--blue-bright)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⇄ Invertir izq/der
+                </button>
+              )}
+              {(activeNode.kind === 'bin' || activeNode.kind === 'neg') && onUnwrapExpr && (
+                <button
+                  type="button"
+                  onClick={() => onUnwrapExpr(activeSlot)}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--panel-2)',
+                    border: '1px solid var(--red)',
+                    color: 'var(--red)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⌫ Simplificar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {program.length === 0 ? (
           <div
             style={{

@@ -1,7 +1,7 @@
 export const es = {
   app: {
-    title: 'CompiLab',
-    subtitle: 'Simulador interactivo de compilador aritmético',
+    title: 'Hero-Compiler',
+    subtitle: 'Simulador interactivo y mini-juegos de compilación aritmética',
     nav: {
       editor: 'Editor de Bloques',
       arena: 'Arena de Compilación',

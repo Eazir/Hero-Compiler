@@ -94,6 +94,57 @@ describe('FE-3: Reproductor de fases y animación 1 a 1 en la Arena', () => {
     );
 
     expect(screen.getByText(/instrucciones optimizadas/i)).toBeInTheDocument();
-    expect(screen.getByText('print 11')).toBeInTheDocument();
+    expect(screen.getAllByText('print 11').length).toBeGreaterThan(0);
+  });
+
+  test('en la fase de ensamblador y binario se visualizan AsmView y HexView', () => {
+    usePlayerStore.setState({ activePhase: 'assembly', stepIndex: 0 });
+
+    const { rerender } = render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText(/instrucciones de ensamblador isa/i)).toBeInTheDocument();
+    expect(screen.getAllByText('LOADI R0, 11').length).toBeGreaterThan(0);
+
+    usePlayerStore.setState({ activePhase: 'binary', stepIndex: 0 });
+    rerender(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    expect(screen.getByText(/rejilla hexadecimal de 8 bytes/i)).toBeInTheDocument();
+  });
+
+  test('el mini-juego de Hero-Compiler permite jugar cada paso y abre la ventana de diagnóstico al equivocarse', () => {
+    usePlayerStore.setState({ activePhase: 'lexical', stepIndex: 0 });
+
+    render(
+      <BrowserRouter>
+        <ArenaScreen />
+      </BrowserRouter>
+    );
+
+    // El primer token es "a" (ID). Si el usuario elige una opción errónea (ej. NUM), aparece el modal explicando qué error se cometió y qué se debió hacer
+    const wrongBtn = screen.getByRole('button', { name: /NUM \(Constante numérica entera\)/i });
+    fireEvent.click(wrongBtn);
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText(/¿Qué error se cometió\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/¿Qué se debió hacer\?/i)).toBeInTheDocument();
+
+    // Cerrar el modal y elegir la opción correcta (ID)
+    const closeBtn = screen.getByRole('button', { name: /entendido, corregir paso/i });
+    fireEvent.click(closeBtn);
+
+    const rightBtn = screen.getByRole('button', { name: /ID \(Identificador de variable\)/i });
+    fireEvent.click(rightBtn);
+
+    // Avanza al Paso 2 del mini-juego
+    expect(screen.getByText(/Progreso: 1 \//i)).toBeInTheDocument();
   });
 });

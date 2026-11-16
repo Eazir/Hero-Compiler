@@ -5,7 +5,7 @@ import { toSource } from '../../domain/serialize';
 import { BlockPath } from '../../domain/sourceMap';
 import { es } from '../../i18n/es';
 import { useCompileStore } from '../../state/compileStore';
-import { useProgramStore } from '../../state/programStore';
+import { HERO_MISSIONS, useProgramStore } from '../../state/programStore';
 import { Button } from '../../ui/Button';
 import { BlockCanvas } from './BlockCanvas';
 import { CodePreview } from './CodePreview';
@@ -24,6 +24,12 @@ export const EditorScreen: React.FC = () => {
     updateNode,
     updateVariableName,
     removeStatement,
+    moveStatement,
+    duplicateStatement,
+    toggleStatementKind,
+    swapBinaryOperands,
+    unwrapExpr,
+    loadMission,
     undo,
     canUndo,
     loadDefaultExample,
@@ -52,8 +58,22 @@ export const EditorScreen: React.FC = () => {
     handleSelectFragment(type, slot);
   };
 
-  const handleCompile = async () => {
-    const res = await compileSource(text, true);
+  const handleDuplicate = (index: number) => {
+    const res = duplicateStatement(index);
+    if (!res.ok) {
+      if (res.reason === 'MAX_FRAGMENTS') {
+        setWarningMessage('El fragmento 13 fue rechazado: el límite máximo es de 12 fragmentos.');
+      } else if (res.reason === 'MAX_LINES') {
+        setWarningMessage('No se pueden agregar más de 8 líneas al programa.');
+      }
+    } else {
+      setWarningMessage(null);
+    }
+  };
+
+  const handleCompile = async (overrideSource?: string) => {
+    const srcToCompile = typeof overrideSource === 'string' ? overrideSource : text;
+    const res = await compileSource(srcToCompile, true);
     if (res) {
       if (res.ok) {
         navigate('/arena');
@@ -81,9 +101,49 @@ export const EditorScreen: React.FC = () => {
           {es.app.nav.editor}
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>
-          Construye programas con fragmentos visuales arrastrando o usando el teclado.
+          Diseña tu programa con bloques interactivos, transforma expresiones o edita código libremente antes de entrar a los mini-juegos de compilación.
         </p>
       </header>
+
+      {/* Selector de Misiones Predefinidas de Hero-Compiler */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
+          gap: '10px',
+        }}
+      >
+        {HERO_MISSIONS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => {
+              setWarningMessage(null);
+              loadMission(m.id);
+            }}
+            style={{
+              textAlign: 'left',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(15, 29, 54, 0.75)',
+              border: '1px solid var(--line)',
+              color: 'var(--text-pure)',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <strong style={{ fontSize: '0.85rem', color: 'var(--green)' }}>
+              🎯 {m.title}
+            </strong>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              {m.desc}
+            </span>
+          </button>
+        ))}
+      </div>
 
       {/* Barra de control y conteo de fragmentos */}
       <div
@@ -97,7 +157,7 @@ export const EditorScreen: React.FC = () => {
       >
         <FragmentCounter fragments={fragmentCount} lines={lineCount} />
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant="secondary"
             size="sm"
@@ -168,6 +228,11 @@ export const EditorScreen: React.FC = () => {
             onDropFragment={handleDropFragment}
             onUpdateNode={updateNode}
             onUpdateVarName={updateVariableName}
+            onMoveStmt={moveStatement}
+            onDuplicateStmt={handleDuplicate}
+            onToggleStmtKind={toggleStatementKind}
+            onSwapOperands={swapBinaryOperands}
+            onUnwrapExpr={unwrapExpr}
           />
         </div>
 

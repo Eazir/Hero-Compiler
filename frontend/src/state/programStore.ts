@@ -11,6 +11,7 @@ import {
   canAdd,
   countFragments,
   getNodeAtPath,
+  neg,
   num,
   printStmt,
   programWithFragments,
@@ -19,6 +20,52 @@ import {
   v,
 } from '../domain/blocks';
 import { BlockPath } from '../domain/sourceMap';
+
+export interface HeroMission {
+  id: string;
+  title: string;
+  desc: string;
+  program: Program;
+}
+
+export const HERO_MISSIONS: HeroMission[] = [
+  {
+    id: 'canonical',
+    title: 'Misión 1: El Caso Canónico',
+    desc: 'a = 5, b = 3, c = a + b * 2, print(c) → Optimiza a 24 bytes',
+    program: programWithFragments(12),
+  },
+  {
+    id: 'negation',
+    title: 'Misión 2: Precedencia y Negación',
+    desc: 'x = 10, y = -x + 4 * 6, print(y) → Prueba menos unario y *',
+    program: [
+      assign('x', num(10)),
+      assign('y', bin('+', neg(v('x')), bin('*', num(4), num(6)))),
+      printStmt(v('y')),
+    ],
+  },
+  {
+    id: 'chain',
+    title: 'Misión 3: Cadena de Variables',
+    desc: 'a = 4, b = a * 3, c = b - 2, print(c) → Propagación en cascada',
+    program: [
+      assign('a', num(4)),
+      assign('b', bin('*', v('a'), num(3))),
+      assign('c', bin('-', v('b'), num(2))),
+      printStmt(v('c')),
+    ],
+  },
+  {
+    id: 'associativity',
+    title: 'Misión 4: Asociatividad Izquierda',
+    desc: 'p = 20 - 5 - 3, print(p) → Evalúa (20 - 5) - 3 = 12',
+    program: [
+      assign('p', bin('-', bin('-', num(20), num(5)), num(3))),
+      printStmt(v('p')),
+    ],
+  },
+];
 
 interface ProgramState {
   program: Program;
@@ -39,6 +86,12 @@ interface ProgramState {
   updateNode: (path: BlockPath, replacement: Expr | Stmt) => void;
   updateVariableName: (index: number, name: string) => void;
   removeStatement: (index: number) => void;
+  moveStatement: (index: number, direction: 'up' | 'down') => void;
+  duplicateStatement: (index: number) => { ok: boolean; reason?: 'MAX_FRAGMENTS' | 'MAX_LINES' };
+  toggleStatementKind: (index: number) => void;
+  swapBinaryOperands: (path: BlockPath) => void;
+  unwrapExpr: (path: BlockPath) => void;
+  loadMission: (missionId: string) => void;
   undo: () => void;
   canUndo: () => boolean;
   loadDefaultExample: () => void;
@@ -90,7 +143,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
     let nextProgram = [...currentProg];
 
     if (slot && slot.length > 0) {
-      // Inserción dirigida a una ranura o nodo específico
       const existing = getNodeAtPath(currentProg, slot);
 
       if (type === '+' || type === '-' || type === '*') {
@@ -100,7 +152,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
           existing.kind !== 'assign' &&
           existing.kind !== 'print'
         ) {
-          // Envuelve la expresión existente como operando izquierdo (ej. 'b' -> 'b * 2')
           nextProgram = updateNodeAtPath(
             currentProg,
             slot,
@@ -113,12 +164,22 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
             bin(type, num(1), num(2))
           );
         }
+      } else if (type === 'neg') {
+        if (
+          existing &&
+          'kind' in existing &&
+          existing.kind !== 'assign' &&
+          existing.kind !== 'print'
+        ) {
+          nextProgram = updateNodeAtPath(currentProg, slot, neg(existing as Expr));
+        } else {
+          nextProgram = updateNodeAtPath(currentProg, slot, neg(num(1)));
+        }
       } else if (type === 'num') {
         nextProgram = updateNodeAtPath(currentProg, slot, num(42));
       } else if (type === 'var') {
         nextProgram = updateNodeAtPath(currentProg, slot, v('x'));
       } else if (type === 'assign' || type === 'print') {
-        // Si se suelta una sentencia sobre una línea existente, insertar a continuación
         const stmtIdx = typeof slot[0] === 'number' ? slot[0] : parseInt(slot[0], 10);
         if (currentProg.length >= MAX_LINES) {
           return { ok: false, reason: 'MAX_LINES' };
@@ -130,7 +191,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         nextProgram.splice(stmtIdx + 1, 0, newStmt);
       }
     } else {
-      // Inserción sin ranura (soltado en el lienzo o pulsado en la paleta)
       if (type === 'assign') {
         if (currentProg.length >= MAX_LINES) {
           return { ok: false, reason: 'MAX_LINES' };
@@ -140,12 +200,10 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         if (currentProg.length >= MAX_LINES) {
           return { ok: false, reason: 'MAX_LINES' };
         }
-        // Usar la última variable declarada si existe
         const lastAssign = [...currentProg].reverse().find((s) => s.kind === 'assign');
         const printVar = lastAssign && lastAssign.kind === 'assign' ? lastAssign.name : 'x';
         nextProgram.push(printStmt(v(printVar)));
       } else if (type === '+' || type === '-' || type === '*') {
-        // Envolver la última expresión si existe
         if (currentProg.length > 0) {
           const lastIdx = currentProg.length - 1;
           const lastStmt = currentProg[lastIdx];
@@ -157,9 +215,19 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
         } else {
           nextProgram.push(assign(getNextVarName(currentProg), bin(type, num(1), num(2))));
         }
+      } else if (type === 'neg') {
+        if (currentProg.length > 0) {
+          const lastIdx = currentProg.length - 1;
+          const lastStmt = currentProg[lastIdx];
+          nextProgram = updateNodeAtPath(
+            currentProg,
+            [lastIdx, 'expr'],
+            neg(lastStmt.expr)
+          );
+        } else {
+          nextProgram.push(assign(getNextVarName(currentProg), neg(num(1))));
+        }
       } else if (type === 'num' || type === 'var') {
-        // Si hay espacio para otra sentencia, crea asignación con ese valor;
-        // si no, envuelve la última expresión
         if (currentProg.length < MAX_LINES) {
           nextProgram.push(
             assign(getNextVarName(currentProg), type === 'num' ? num(42) : v('x'))
@@ -176,7 +244,6 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       }
     }
 
-    // Verificar que el nuevo programa no sobrepase el límite estricto de 12 fragmentos
     if (countFragments(nextProgram) > MAX_FRAGMENTS) {
       return { ok: false, reason: 'MAX_FRAGMENTS' };
     }
@@ -222,6 +289,114 @@ export const useProgramStore = create<ProgramState>((set, get) => ({
       program: nextProgram,
       fragmentCount: countFragments(nextProgram),
       lineCount: nextProgram.length,
+      activeSlot: null,
+    });
+  },
+
+  moveStatement: (index: number, direction: 'up' | 'down') => {
+    const currentProg = get().program;
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= currentProg.length) return;
+    const nextProgram = [...currentProg];
+    const [item] = nextProgram.splice(index, 1);
+    nextProgram.splice(targetIdx, 0, item);
+    set({
+      history: [...get().history, currentProg],
+      program: nextProgram,
+      fragmentCount: countFragments(nextProgram),
+      lineCount: nextProgram.length,
+      activeSlot: null,
+    });
+  },
+
+  duplicateStatement: (index: number) => {
+    const currentProg = get().program;
+    if (currentProg.length >= MAX_LINES) {
+      return { ok: false, reason: 'MAX_LINES' };
+    }
+    const stmt = currentProg[index];
+    if (!stmt) return { ok: true };
+    const clone: Stmt =
+      stmt.kind === 'assign'
+        ? assign(getNextVarName(currentProg), JSON.parse(JSON.stringify(stmt.expr)))
+        : printStmt(JSON.parse(JSON.stringify(stmt.expr)));
+    const nextProgram = [...currentProg];
+    nextProgram.splice(index + 1, 0, clone);
+    if (countFragments(nextProgram) > MAX_FRAGMENTS) {
+      return { ok: false, reason: 'MAX_FRAGMENTS' };
+    }
+    set({
+      history: [...get().history, currentProg],
+      program: nextProgram,
+      fragmentCount: countFragments(nextProgram),
+      lineCount: nextProgram.length,
+      activeSlot: null,
+    });
+    return { ok: true };
+  },
+
+  toggleStatementKind: (index: number) => {
+    const currentProg = get().program;
+    const stmt = currentProg[index];
+    if (!stmt) return;
+    const nextProgram = [...currentProg];
+    if (stmt.kind === 'assign') {
+      nextProgram[index] = printStmt(stmt.expr);
+    } else {
+      nextProgram[index] = assign(getNextVarName(currentProg), stmt.expr);
+    }
+    set({
+      history: [...get().history, currentProg],
+      program: nextProgram,
+      fragmentCount: countFragments(nextProgram),
+      lineCount: nextProgram.length,
+    });
+  },
+
+  swapBinaryOperands: (path: BlockPath) => {
+    const currentProg = get().program;
+    const node = getNodeAtPath(currentProg, path);
+    if (!node || !('kind' in node) || node.kind !== 'bin') return;
+    const nextProgram = updateNodeAtPath(
+      currentProg,
+      path,
+      bin(node.op, node.right, node.left)
+    );
+    set({
+      history: [...get().history, currentProg],
+      program: nextProgram,
+      fragmentCount: countFragments(nextProgram),
+      lineCount: nextProgram.length,
+    });
+  },
+
+  unwrapExpr: (path: BlockPath) => {
+    const currentProg = get().program;
+    const node = getNodeAtPath(currentProg, path);
+    if (!node || !('kind' in node)) return;
+    let inner: Expr | null = null;
+    if (node.kind === 'neg') inner = node.operand;
+    if (node.kind === 'bin') inner = node.left;
+    if (!inner) return;
+    const nextProgram = updateNodeAtPath(currentProg, path, inner);
+    set({
+      history: [...get().history, currentProg],
+      program: nextProgram,
+      fragmentCount: countFragments(nextProgram),
+      lineCount: nextProgram.length,
+      activeSlot: null,
+    });
+  },
+
+  loadMission: (missionId: string) => {
+    const found = HERO_MISSIONS.find((m) => m.id === missionId);
+    if (!found) return;
+    const clone: Program = JSON.parse(JSON.stringify(found.program));
+    set({
+      history: [...get().history, get().program],
+      program: clone,
+      fragmentCount: countFragments(clone),
+      lineCount: clone.length,
       activeSlot: null,
     });
   },
